@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from einops.layers.torch import Rearrange
+from functools import partial
+from .utils import PositionalEncoding
 
 
 class RMSNorm(nn.Module):
@@ -48,7 +51,7 @@ class ResnetBlock(nn.Module):
 
         :param dim: input channel
         :param dim_out: output channel
-        :param time_emb_dim: d_model for Positional Encoding
+        :param time_emb_dim: Embedding dimension for time.
         :param group: number of groups for Group normalization.
         """
         super().__init__()
@@ -61,12 +64,12 @@ class ResnetBlock(nn.Module):
         """
 
         :param x: (B, dim, H, W)
-        :param time_emb: (B, d_model)
+        :param time_emb: (B, time_emb_dim)
         :return: (B, dim_out, H, W)
         """
         scale_shift = None
         if time_emb is not None:
-            scale_shift = self.mlp(scale_shift)[..., None, None]  # (B, dim_out*2, 1, 1)
+            scale_shift = self.mlp(time_emb)[..., None, None]  # (B, dim_out*2, 1, 1)
             scale_shift = scale_shift.chunk(2, dim=1)  # len 2 with each element shape (B, dim_out, 1, 1)
         hidden = self.block1(x, scale_shift)
         hidden = self.block2(hidden)
@@ -137,5 +140,110 @@ class LinearAttention(nn.Module):
         k = k.softmax(dim=-1)
         context = torch.einsum('b h f m, b h e m -> b h f e', k, v)
         linear_attention = torch.einsum('b h f e, b h f n -> b h e n', context, q)
-        out = rearrange(linear_attention, 'b h e (i j) -> b (h e) i j', i=i, j=j, e=self.head)
+        out = rearrange(linear_attention, 'b h e (i j) -> b (h e) i j', i=i, j=j, h=self.head)
         return self.to_out(out)
+
+
+def downSample(dim_in, dim_out):
+    return nn.Sequential(Rearrange('b c (h p1) (w p2) -> b (c p1 p2) h w', p1=2, p2=2),
+                         nn.Conv2d(dim_in * 4, dim_out, kernel_size=(1, 1)))
+
+
+def upSample(dim_in, dim_out):
+    return nn.Sequential(nn.Upsample(scale_factor=2, mode='nearest'),
+                         nn.Conv2d(dim_in, dim_out, kernel_size=(3, 3), padding=1))
+
+
+class Unet(nn.Module):
+    def __init__(self, dim, dim_multiply=(1, 2, 4, 8), channel=3, attn_heads=4, attn_head_dim=32,
+                 full_attn=(False, False, False, True), resnet_group_norm=8, device='cuda'):
+        super().__init__()
+        assert len(dim_multiply) == len(full_attn), 'Length of dim_multiply and Length of full_attn must be same'
+
+        # Attributes
+        self.dim = dim
+        self.channel = channel
+        self.hidden_dims = [self.dim, *map(lambda x: x * self.dim, dim_multiply)]
+        self.dim_in_out = list(zip(self.hidden_dims[:-1], self.hidden_dims[1:]))
+        self.time_emb_dim = 4 * self.dim
+        self.full_attn = full_attn
+        self.depth = len(dim_multiply)
+        self.device = device
+
+        # Time embedding
+        positional_encoding = PositionalEncoding(self.dim)
+        self.time_mlp = nn.Sequential(
+            positional_encoding, nn.Linear(self.dim, self.time_emb_dim),
+            nn.GELU(), nn.Linear(self.time_emb_dim, self.time_emb_dim)
+        )
+
+        # Layer definition
+        resnet_block = partial(ResnetBlock, time_emb_dim=self.time_emb_dim, group=resnet_group_norm)
+        self.init_conv = nn.Conv2d(self.channel, self.dim, kernel_size=(7, 7), padding=3)
+        self.down_path = nn.ModuleList([])
+        self.up_path = nn.ModuleList([])
+
+        # Downward Path layer definition
+        for idx, ((dim_in, dim_out), full_attn_flag) in enumerate(zip(self.dim_in_out, self.full_attn)):
+            isLast = idx == (self.depth - 1)
+            attention = LinearAttention if not full_attn_flag else Attention
+            self.down_path.append(nn.ModuleList([
+                resnet_block(dim_in, dim_in),
+                resnet_block(dim_in, dim_in),
+                attention(dim_in, head=attn_heads, dim_head=attn_head_dim),
+                downSample(dim_in, dim_out) if not isLast else nn.Conv2d(dim_in, dim_out, kernel_size=(3, 3), padding=1)
+            ]))
+
+        # Middle later definition
+        mid_dim = self.hidden_dims[-1]
+        self.mid_resnet_block1 = resnet_block(mid_dim, mid_dim)
+        self.mid_attention = Attention(mid_dim, head=attn_heads, dim_head=attn_head_dim)
+        self.mid_resnet_block2 = resnet_block(mid_dim, mid_dim)
+
+        # Upward Path layer definition
+        for idx, ((dim_in, dim_out), full_attn_flag) in enumerate(
+                zip(reversed(self.dim_in_out), reversed(self.full_attn))):
+            isLast = idx == (self.depth - 1)
+            attention = LinearAttention if not full_attn_flag else Attention
+            self.up_path.append(nn.ModuleList([
+                resnet_block(dim_in + dim_out, dim_out),
+                resnet_block(dim_in + dim_out, dim_out),
+                attention(dim_out, head=attn_heads, dim_head=attn_head_dim),
+                upSample(dim_out, dim_in) if not isLast else nn.Conv2d(dim_out, dim_in, kernel_size=(3, 3), padding=1)
+            ]))
+
+        self.final_resnet_block = resnet_block(2 * self.dim, self.dim)
+        self.final_conv = nn.Conv2d(self.dim, self.channel, kernel_size=(1, 1))
+
+    def forward(self, x, time):
+        x = self.init_conv(x)
+        r = x.clone()
+        t = self.time_mlp(time)
+        concat = list()
+
+        for block1, block2, attn, downsample in self.down_path:
+            x = block1(x, t)
+            concat.append(x)
+
+            x = block2(x, t)
+            x = attn(x) + x
+            concat.append(x)
+
+            x = downsample(x)
+
+        x = self.mid_resnet_block1(x, t)
+        x = self.mid_attention(x) + x
+        x = self.mid_resnet_block2(x, t)
+
+        for block1, block2, attn, upsample in self.up_path:
+            x = torch.cat((x, concat.pop()), dim=1)
+            x = block1(x, t)
+
+            x = torch.cat((x, concat.pop()), dim=1)
+            x = block2(x, t)
+            x = attn(x) + x
+            x = upsample(x)
+
+        x = torch.cat((x, r), dim=1)
+        x = self.final_resnet_block(x, t)
+        return self.final_conv(x)

@@ -25,7 +25,7 @@ class GaussianDiffusion(nn.Module):
         self.register_buffer('alpha_bar_prev', alpha_bar_prev)
 
         # calculation for q(x_t | x_0) consult (4) in DDPM paper.
-        self.register_buffer('sqrt_alpha_ber', torch.sqrt(alpha_bar))
+        self.register_buffer('sqrt_alpha_bar', torch.sqrt(alpha_bar))
         self.register_buffer('sqrt_one_minus_alpha_bar', torch.sqrt(1 - alpha_bar))
 
         # calculation for q(x_{t-1} | x_t, x_0) consult (7) in DDPM paper.
@@ -89,7 +89,7 @@ class GaussianDiffusion(nn.Module):
 
         pred_noise = self.model(xt, t)  # corresponds to epsilon_{theta}
         if clip:
-            x0 = self.sqrt_recip_alpha_bar[t][:, None, None, None] - \
+            x0 = self.sqrt_recip_alpha_bar[t][:, None, None, None] * xt - \
                  self.sqrt_recip_alpha_bar_min_1[t][:, None, None, None] * pred_noise
             x0.clamp_(-1., 1.)
             mean = self.mean_tilde_x0_coeff[t][:, None, None, None] * x0 + \
@@ -107,7 +107,7 @@ class GaussianDiffusion(nn.Module):
         xT = torch.randn([batch_size, self.channel, self.image_size, self.image_size], device=self.device)
         denoised_intermediates = [xT]
         xt = xT
-        for t in tqdm(reversed(range(0, self.time_step)), desc='Sampling', total=self.time_step):
+        for t in tqdm(reversed(range(0, self.time_step)), desc='Sampling', total=self.time_step, leave=False):
             batched_time = torch.full((batch_size,), t, device=self.device, dtype=torch.long)
             x_t_minus_1 = self.p_sample(xt, batched_time, clip)
             denoised_intermediates.append(x_t_minus_1)
