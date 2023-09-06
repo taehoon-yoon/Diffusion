@@ -15,9 +15,9 @@ class GaussianDiffusion(nn.Module):
         self.loss_type = loss_type
 
         beta = self.linear_beta_schedule()  # (t, )  t=time_step, in DDPM paper t=1000
-        alpha = 1. - beta
-        alpha_bar = torch.cumprod(alpha, dim=0)  # (t, )
-        alpha_bar_prev = F.pad(alpha_bar[:-1], pad=(1, 0), value=1.)  # (t, )
+        alpha = 1. - beta  # (a1, a2, a3, ... at)
+        alpha_bar = torch.cumprod(alpha, dim=0)  # (a1, a1*a2, a1*a2*a3, ..., a1*a2*~*at)
+        alpha_bar_prev = F.pad(alpha_bar[:-1], pad=(1, 0), value=1.)  # (1, a1, a1*a2, ..., a1*a2*~*a(t-1))
 
         self.register_buffer('beta', beta)
         self.register_buffer('alpha', alpha)
