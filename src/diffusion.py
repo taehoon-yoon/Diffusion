@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 
 class GaussianDiffusion(nn.Module):
-    def __init__(self, model, image_size, time_step=1000, loss_type='l2'):
+    def __init__(self, model, image_size, time_step=1000, loss_type='l2', ddim_sampling_steps=None, eta=0):
         super().__init__()
         self.model = model
         self.channel = self.model.channel
@@ -41,6 +41,28 @@ class GaussianDiffusion(nn.Module):
         self.register_buffer('sqrt_recip_alpha', torch.sqrt(1. / alpha))
         self.register_buffer('beta_over_sqrt_one_minus_alpha_bar', beta / torch.sqrt(1. - alpha_bar))
 
+        # DDIM #############
+        self.is_ddim_sampling = False if ddim_sampling_steps is None else True
+        if self.is_ddim_sampling:
+            assert ddim_sampling_steps <= time_step, 'DDIM sampling step must be smaller or equal to DDPM sampling step'
+            # One thing you mush notice is that although sampling time is indexed as [1,...T] in paper,
+            # since in computer program we index from [0,...T-1] rather than [1,...T],
+            # value of tau ranges from [-1, ...T-1] where t=-1 indicate initial state (Data distribution)
+
+            # [tau_1, tau_2, ... tau_S] sec 4.2
+            tau = torch.linspace(-1, time_step - 1, steps=ddim_sampling_steps + 1)[:-1]
+            trajectory = reversed(tau.long())  # [tau_S, ..., tau_2, tau_1]
+
+            self.alpha_tau_i = self.alpha_bar[trajectory]
+            self.alpha_tau_i_min_1 = F.pad(self.alpha_bar[trajectory[1:]], pad=(0, 1), value=1.)  # alpha_0 = 1
+
+            # (16) in DDIM
+            self.register_buffer('sigma', eta * (((1 - self.alpha_tau_i_min_1) / (1 - self.alpha_tau_i) *
+                                                  (1 - self.alpha_tau_i / self.alpha_tau_i_min_1)).sqrt()))
+            # (12) in DDIM
+            self.register_buffer('coeff', (1 - self.alpha_tau_i_min_1 - self.sigma ** 2).sqrt())
+            self.register_buffer('sqrt_alpha_i_min_1', self.alpha_tau_i_min_1.sqrt())
+
     # Forward Process / Diffusion Process ##############################################################################
     def q_sample(self, x0, t, noise):
         """
@@ -73,7 +95,7 @@ class GaussianDiffusion(nn.Module):
 
     ####################################################################################################################
 
-    # Reverse Process ##################################################################################################
+    # Reverse Process / De-noising Process #############################################################################
     @torch.inference_mode()
     def p_sample(self, xt, t, clip=True):
         """
@@ -96,7 +118,7 @@ class GaussianDiffusion(nn.Module):
                    self.mean_tilde_xt_coeff[t][:, None, None, None] * xt
         else:
             mean = self.sqrt_recip_alpha[t][:, None, None, None] * \
-                   (xt - self.beta_over_sqrt_one_minus_alpha_bar[t][:, None, None, None]*pred_noise)
+                   (xt - self.beta_over_sqrt_one_minus_alpha_bar[t][:, None, None, None] * pred_noise)
         variance = self.beta_tilde[t][:, None, None, None]
         noise = torch.randn_like(xt) if t[0] > 0 else 0.  # corresponds to z, consult 4: in Algorithm 2.
         x_t_minus_1 = mean + torch.sqrt(variance) * noise
@@ -107,7 +129,7 @@ class GaussianDiffusion(nn.Module):
         xT = torch.randn([batch_size, self.channel, self.image_size, self.image_size], device=self.device)
         denoised_intermediates = [xT]
         xt = xT
-        for t in tqdm(reversed(range(0, self.time_step)), desc='Sampling', total=self.time_step, leave=False):
+        for t in tqdm(reversed(range(0, self.time_step)), desc='DDPM Sampling', total=self.time_step, leave=False):
             batched_time = torch.full((batch_size,), t, device=self.device, dtype=torch.long)
             x_t_minus_1 = self.p_sample(xt, batched_time, clip)
             denoised_intermediates.append(x_t_minus_1)
@@ -116,6 +138,7 @@ class GaussianDiffusion(nn.Module):
         images = xt if not return_all_timestep else torch.stack(denoised_intermediates, dim=1)
         images = (images + 1.0) * 0.5  # scale to 0~1
         return images
+
     ####################################################################################################################
 
     def linear_beta_schedule(self):
