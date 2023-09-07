@@ -9,10 +9,10 @@ import os
 ssl._create_default_https_context = ssl._create_unverified_context
 
 
-def dataset_wrapper(dataset, image_size):
+def dataset_wrapper(dataset, image_size, augment_horizontal_flip=True):
     transform = transforms.Compose([
         transforms.Resize(image_size),
-        transforms.RandomHorizontalFlip(),
+        transforms.RandomHorizontalFlip() if augment_horizontal_flip else torch.nn.Identity(),
         transforms.CenterCrop(image_size),
         transforms.ToTensor(),  # turn into torch Tensor of shape CHW, 0 ~ 1
         transforms.Lambda(lambda x: ((x * 2) - 1))  # -1 ~ 1

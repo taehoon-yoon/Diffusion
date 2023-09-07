@@ -67,14 +67,22 @@ class FID:
                 m2, s2 = f['m2'], f['s2']
             print(colored('Successfully loaded pre-computed Inception feature from cached file\n', 'light_magenta'))
         else:
-            num_batches = int(math.ceil(self.num_samples / self.batch_size))
+            # num_batches = int(math.ceil(self.num_samples / self.batch_size))
+            # stacked_real_features = list()
+            # print(colored('Computing Inception features for {} '
+            #               'samples from real dataset.'.format(num_batches * self.batch_size), 'light_magenta'))
+            # for _ in tqdm(range(num_batches), desc='Calculating stats for data distribution', leave=False):
+            #     real_samples = next(self.dataLoader).to(self.device)
+            #     real_features = self.calculate_inception_features(real_samples)
+            #     stacked_real_features.append(real_features)
             stacked_real_features = list()
             print(colored('Computing Inception features for {} '
-                          'samples from real dataset.'.format(num_batches * self.batch_size), 'light_magenta'))
-            for _ in tqdm(range(num_batches), desc='Calculating stats for data distribution', leave=False):
-                real_samples = next(self.dataLoader).to(self.device)
+                          'samples from real dataset.'.format(len(self.dataLoader.dataset)), 'light_magenta'))
+            for batch in tqdm(self.dataLoader, desc='Calculating stats for data distribution', leave=False):
+                real_samples = batch[0].to(self.device)
                 real_features = self.calculate_inception_features(real_samples)
                 stacked_real_features.append(real_features)
+
             stacked_real_features = torch.cat(stacked_real_features, dim=0).cpu().numpy()
             m2 = np.mean(stacked_real_features, axis=0)
             s2 = np.cov(stacked_real_features, rowvar=False)
@@ -91,7 +99,7 @@ class FID:
             fake_features = self.calculate_inception_features(fake_samples)
             stacked_fake_features.append(fake_features)
         stacked_fake_features = torch.cat(stacked_fake_features, dim=0).cpu().numpy()
-        m1 = np.mean(stacked_fake_features, dim=0)
+        m1 = np.mean(stacked_fake_features, axis=0)
         s1 = np.cov(stacked_fake_features, rowvar=False)
         return calculate_frechet_distance(m1, s1, self.m2, self.s2)
 

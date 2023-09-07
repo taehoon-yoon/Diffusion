@@ -30,7 +30,8 @@ def cycle(dl):
 
 class Trainer:
     def __init__(self, diffusion_model, dataset, batch_size=32, lr=2e-5, total_step=100000, save_and_sample_every=1000,
-                 num_samples=25, result_folder='./results', cpu_percentage=0, calculate_fid=True, num_fid_samples=None,
+                 num_samples=25, result_folder='./results', cpu_percentage=0,
+                 calculate_fid=True, num_fid_samples=None, cal_fid_every=5000, fid_batch_size=None,
                  ema_decay=0.9999, ema_update_every=10, max_grad_norm=1., tensorboard=True, exp_name=None, clip=True):
         now = datetime.datetime.now()
         cur_time = now.strftime('%Y-%m-%d_%Hh%Mm')
@@ -50,15 +51,18 @@ class Trainer:
         self.is_ddim_sampling = self.diffusion_model.is_ddim_sampling
         self.calculate_fid = calculate_fid
         self.global_step = 0
+        self.fid_batch_size = self.batch_size if fid_batch_size is None else fid_batch_size
 
         notification = make_notification('Dataset', color='light_green')
         print(notification)
         dataSet = dataset_wrapper(dataset, self.image_size)
+        dataSet_fid = dataset_wrapper(dataset, self.image_size, augment_horizontal_flip=False)
         assert len(dataSet) >= 100, 'you should have at least 100 images in your folder.at least 10k images recommended'
         print(colored('Dataset Length: {}\n'.format(len(dataSet)), 'light_green'))
         CPU_cnt = cpu_count()
         # TODO: pin_memory?
-        dataLoader = DataLoader(dataSet, batch_size=batch_size, shuffle=True, num_workers=CPU_cnt * cpu_percentage)
+        dataLoader = DataLoader(dataSet, batch_size=self.batch_size, shuffle=True, num_workers=CPU_cnt * cpu_percentage)
+        dataLoader_fid = DataLoader(dataSet_fid, batch_size=self.fid_batch_size, num_workers=CPU_cnt * cpu_percentage)
         self.dataLoader = cycle(dataLoader) if os.path.isdir(dataset) else cycle_with_label(dataLoader)
         self.optimizer = Adam(self.diffusion_model.parameters(), lr=lr)
 
@@ -71,6 +75,8 @@ class Trainer:
         self.total_step = total_step
 
         self.num_fid_samples = len(dataSet) if num_fid_samples is None else num_fid_samples
+        self.cal_fid_every = cal_fid_every
+
         if self.calculate_fid:
             if not self.is_ddim_sampling:
                 notification = make_notification('WARNING', color='red', boundary='*')
@@ -79,8 +85,11 @@ class Trainer:
                               "can therefore be very time consuming.", 'red'))
                 print('To accelerate sampling, DDIM sampling method is recommended. To enable DDIM sampling,'
                       'set [ddim_sampling_steps] parameter to some value while instantiating diffusion model.\n')
-            self.fid_scorer = FID(batch_size, self.dataLoader, sampler=self.sampler,
+            self.fid_scorer = FID(fid_batch_size, dataLoader_fid, sampler=self.sampler,
                                   dataset_name=exp_name, num_samples=self.num_fid_samples)
+            print(colored('FID score will be calculated every {} steps with {} generated image which is {:.02f}% of '
+                          'original dataset size\n'.format(self.cal_fid_every, self.num_fid_samples,
+                                                           self.num_fid_samples / len(dataSet) * 100), 'light_magenta'))
 
         self.writer = None
         if tensorboard:
@@ -112,6 +121,7 @@ class Trainer:
             stepTQDM.set_postfix({'loss': '{:.04f}'.format(loss.item()), 'FID': vis_fid})
             if self.writer is not None:
                 self.writer.add_scalar('Loss', loss.item(), cur_step)
+
             if cur_step != 0 and (cur_step % self.save_and_sample_every) == 0:
                 self.ema.ema_model.eval()
 
@@ -130,35 +140,52 @@ class Trainer:
                 all_images2 = torch.cat(img_list2, dim=0)
                 all_images_no_clip2 = torch.cat(img_no_clip2, dim=0)
 
-                print(colored('-'*50, 'red'))
-                print(all_images.min(), all_images.max())
-                print(all_images_no_clip.min(), all_images_no_clip.max())
-                print(all_images2.min(), all_images2.max())
-                print(all_images_no_clip2.min(), all_images_no_clip2.max())
-                print(colored('-' * 50, 'red'))
+                # print(colored('-' * 50, 'red'))
+                # print(all_images.min(), all_images.max())
+                # print(all_images_no_clip.min(), all_images_no_clip.max())
+                # print(all_images2.min(), all_images2.max())
+                # print(all_images_no_clip2.min(), all_images_no_clip2.max())
+                # print(colored('-' * 50, 'red'))
 
                 torchvision.utils.save_image(all_images, nrow=int(math.sqrt(self.num_samples)),
-                                             fp=os.path.join(self.result_folder, 'clip', f'sample_{milestone}_ddim.png'))
+                                             fp=os.path.join(self.result_folder, 'clip',
+                                                             f'sample_{milestone}_ddim.png'))
                 torchvision.utils.save_image(all_images_no_clip, nrow=int(math.sqrt(self.num_samples)),
-                                             fp=os.path.join(self.result_folder, 'no_clip', f'sample_{milestone}_ddim.png'))
+                                             fp=os.path.join(self.result_folder, 'no_clip',
+                                                             f'sample_{milestone}_ddim.png'))
 
                 torchvision.utils.save_image(all_images2, nrow=int(math.sqrt(self.num_samples)),
-                                             fp=os.path.join(self.result_folder, 'clip', f'sample_{milestone}_ddpm.png'))
+                                             fp=os.path.join(self.result_folder, 'clip',
+                                                             f'sample_{milestone}_ddpm.png'))
                 torchvision.utils.save_image(all_images_no_clip2, nrow=int(math.sqrt(self.num_samples)),
-                                             fp=os.path.join(self.result_folder, 'no_clip', f'sample_{milestone}_ddpm.png'))
+                                             fp=os.path.join(self.result_folder, 'no_clip',
+                                                             f'sample_{milestone}_ddpm.png'))
 
                 if self.writer is not None:
                     all_images2.clamp_(0.0, 1.0)
-                    self.writer.add_images('sampling result', all_images2, cur_step)
+                    self.writer.add_images('DDPM sampling result', all_images2, cur_step)
 
-                if self.calculate_fid:
-                    cur_fid = self.fid_scorer.fid_score()
-                    if best_fid > cur_fid:
-                        best_fid = cur_fid
-                        self.save('best_fid')
-                    if self.writer is not None:
-                        self.writer.add_scalar('FID', cur_fid, cur_step)
+                    all_images.clamp_(0.0, 1.0)
+                    self.writer.add_images('DDIM sampling result', all_images, cur_step)
+
+                # if self.calculate_fid:
+                #     cur_fid = self.fid_scorer.fid_score()
+                #     if best_fid > cur_fid:
+                #         best_fid = cur_fid
+                #         self.save('best_fid')
+                #     if self.writer is not None:
+                #         self.writer.add_scalar('FID', cur_fid, cur_step)
                 self.save('latest')
+                self.ema.ema_model.train()
+
+            if cur_step != 0 and self.calculate_fid and (cur_step % self.cal_fid_every) == 0:
+                self.ema.ema_model.eval()
+                cur_fid = self.fid_scorer.fid_score()
+                if best_fid > cur_fid:
+                    best_fid = cur_fid
+                    self.save('best_fid')
+                if self.writer is not None:
+                    self.writer.add_scalar('FID', cur_fid, cur_step)
                 self.ema.ema_model.train()
 
         print(colored('Training Finished!', 'light_yellow'))
