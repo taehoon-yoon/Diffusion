@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 
 class GaussianDiffusion(nn.Module):
-    def __init__(self, model, image_size, time_step=1000, loss_type='l2', ddim_sampling_steps=None, eta=0):
+    def __init__(self, model, image_size, time_step=1000, loss_type='l2', ddim_sampling_steps=100, eta=0):
         super().__init__()
         self.model = model
         self.channel = self.model.channel
@@ -51,8 +51,8 @@ class GaussianDiffusion(nn.Module):
             # value of tau ranges from [-1, ...T-1] where t=-1 indicate initial state (Data distribution)
 
             # [tau_1, tau_2, ... tau_S] sec 4.2
-            self.register_buffer('tau', torch.linspace(-1, time_step - 1, steps=ddim_sampling_steps + 1)[:-1])
-
+            self.register_buffer('tau', torch.linspace(-1, time_step - 1,
+                                                       steps=ddim_sampling_steps + 1, dtype=torch.long)[1:])
             alpha_tau_i = self.alpha_bar[self.tau]
             alpha_tau_i_min_1 = F.pad(self.alpha_bar[self.tau[:-1]], pad=(1, 0), value=1.)  # alpha_0 = 1
 
@@ -63,7 +63,7 @@ class GaussianDiffusion(nn.Module):
             self.register_buffer('coeff', (1 - alpha_tau_i_min_1 - self.sigma ** 2).sqrt())
             self.register_buffer('sqrt_alpha_i_min_1', alpha_tau_i_min_1.sqrt())
 
-            assert self.coeff[0] == 0.0 and self.sqrt_alpha_i_min_1 == 1.0, 'ddim parameter error'
+            assert self.coeff[0] == 0.0 and self.sqrt_alpha_i_min_1[0] == 1.0, 'ddim parameter error'
 
     # Forward Process / Diffusion Process ##############################################################################
     def q_sample(self, x0, t, noise):
@@ -147,7 +147,8 @@ class GaussianDiffusion(nn.Module):
     @torch.inference_mode()
     def ddim_p_sample(self, xt, i, clip=True):
         t = self.tau[i]
-        pred_noise = self.model(xt, t)  # corresponds to epsilon_{theta}
+        batched_time = torch.full((xt.shape[0],), t, device=self.device, dtype=torch.long)
+        pred_noise = self.model(xt, batched_time)  # corresponds to epsilon_{theta}
         x0 = self.sqrt_recip_alpha_bar[t] * xt - self.sqrt_recip_alpha_bar_min_1[t] * pred_noise
         if clip:
             x0.clamp_(-1., 1.)
@@ -155,8 +156,7 @@ class GaussianDiffusion(nn.Module):
 
         mean = self.sqrt_alpha_i_min_1[i] * x0 + self.coeff[i] * pred_noise
         noise = torch.randn_like(xt) if i > 0 else 0.
-        std = self.sigma * noise
-        x_t_minus_1 = mean + std * noise
+        x_t_minus_1 = mean + self.sigma[i] * noise
         return x_t_minus_1
 
     @torch.inference_mode()
@@ -164,7 +164,7 @@ class GaussianDiffusion(nn.Module):
         xT = torch.randn([batch_size, self.channel, self.image_size, self.image_size], device=self.device)
         denoised_intermediates = [xT]
         xt = xT
-        for i in tqdm(reversed(self.ddim_steps), desc='DDIM Sampling', total=self.ddim_steps, leave=False):
+        for i in tqdm(reversed(range(0, self.ddim_steps)), desc='DDIM Sampling', total=self.ddim_steps, leave=False):
             x_t_minus_1 = self.ddim_p_sample(xt, i, clip)
             denoised_intermediates.append(x_t_minus_1)
             xt = x_t_minus_1

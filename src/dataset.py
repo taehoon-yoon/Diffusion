@@ -2,6 +2,7 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset
+from termcolor import colored
 import ssl
 import os
 
@@ -17,11 +18,11 @@ def dataset_wrapper(dataset, image_size):
         transforms.Lambda(lambda x: ((x * 2) - 1))  # -1 ~ 1
     ])
     if os.path.isdir(dataset):
-        print('Loading local file directory')
+        print(colored('Loading local file directory', 'light_green'))
     else:
         dataset = dataset.lower()
         assert dataset in ['cifar10']
-        print('Loading {} dataset'.format(dataset))
+        print(colored('Loading {} dataset'.format(dataset), 'light_green'))
         if dataset == 'cifar10':
             trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
             testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
