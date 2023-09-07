@@ -45,23 +45,25 @@ class GaussianDiffusion(nn.Module):
         self.is_ddim_sampling = False if ddim_sampling_steps is None else True
         if self.is_ddim_sampling:
             assert ddim_sampling_steps <= time_step, 'DDIM sampling step must be smaller or equal to DDPM sampling step'
+            self.ddim_steps = ddim_sampling_steps
             # One thing you mush notice is that although sampling time is indexed as [1,...T] in paper,
             # since in computer program we index from [0,...T-1] rather than [1,...T],
             # value of tau ranges from [-1, ...T-1] where t=-1 indicate initial state (Data distribution)
 
             # [tau_1, tau_2, ... tau_S] sec 4.2
-            tau = torch.linspace(-1, time_step - 1, steps=ddim_sampling_steps + 1)[:-1]
-            trajectory = reversed(tau.long())  # [tau_S, ..., tau_2, tau_1]
+            self.register_buffer('tau', torch.linspace(-1, time_step - 1, steps=ddim_sampling_steps + 1)[:-1])
 
-            self.alpha_tau_i = self.alpha_bar[trajectory]
-            self.alpha_tau_i_min_1 = F.pad(self.alpha_bar[trajectory[1:]], pad=(0, 1), value=1.)  # alpha_0 = 1
+            alpha_tau_i = self.alpha_bar[self.tau]
+            alpha_tau_i_min_1 = F.pad(self.alpha_bar[self.tau[:-1]], pad=(1, 0), value=1.)  # alpha_0 = 1
 
             # (16) in DDIM
-            self.register_buffer('sigma', eta * (((1 - self.alpha_tau_i_min_1) / (1 - self.alpha_tau_i) *
-                                                  (1 - self.alpha_tau_i / self.alpha_tau_i_min_1)).sqrt()))
+            self.register_buffer('sigma', eta * (((1 - alpha_tau_i_min_1) / (1 - alpha_tau_i) *
+                                                  (1 - alpha_tau_i / alpha_tau_i_min_1)).sqrt()))
             # (12) in DDIM
-            self.register_buffer('coeff', (1 - self.alpha_tau_i_min_1 - self.sigma ** 2).sqrt())
-            self.register_buffer('sqrt_alpha_i_min_1', self.alpha_tau_i_min_1.sqrt())
+            self.register_buffer('coeff', (1 - alpha_tau_i_min_1 - self.sigma ** 2).sqrt())
+            self.register_buffer('sqrt_alpha_i_min_1', alpha_tau_i_min_1.sqrt())
+
+            assert self.coeff[0] == 0.0 and self.sqrt_alpha_i_min_1 == 1.0, 'ddim parameter error'
 
     # Forward Process / Diffusion Process ##############################################################################
     def q_sample(self, x0, t, noise):
@@ -132,6 +134,38 @@ class GaussianDiffusion(nn.Module):
         for t in tqdm(reversed(range(0, self.time_step)), desc='DDPM Sampling', total=self.time_step, leave=False):
             batched_time = torch.full((batch_size,), t, device=self.device, dtype=torch.long)
             x_t_minus_1 = self.p_sample(xt, batched_time, clip)
+            denoised_intermediates.append(x_t_minus_1)
+            xt = x_t_minus_1
+
+        images = xt if not return_all_timestep else torch.stack(denoised_intermediates, dim=1)
+        images = (images + 1.0) * 0.5  # scale to 0~1
+        return images
+
+    ####################################################################################################################
+
+    # DDIM Reverse Process #############################################################################################
+    @torch.inference_mode()
+    def ddim_p_sample(self, xt, i, clip=True):
+        t = self.tau[i]
+        pred_noise = self.model(xt, t)  # corresponds to epsilon_{theta}
+        x0 = self.sqrt_recip_alpha_bar[t] * xt - self.sqrt_recip_alpha_bar_min_1[t] * pred_noise
+        if clip:
+            x0.clamp_(-1., 1.)
+            pred_noise = (self.sqrt_recip_alpha_bar[t] * xt - x0) / self.sqrt_recip_alpha_bar_min_1[t]
+
+        mean = self.sqrt_alpha_i_min_1[i] * x0 + self.coeff[i] * pred_noise
+        noise = torch.randn_like(xt) if i > 0 else 0.
+        std = self.sigma * noise
+        x_t_minus_1 = mean + std * noise
+        return x_t_minus_1
+
+    @torch.inference_mode()
+    def ddim_sample(self, batch_size=16, return_all_timestep=False, clip=True):
+        xT = torch.randn([batch_size, self.channel, self.image_size, self.image_size], device=self.device)
+        denoised_intermediates = [xT]
+        xt = xT
+        for i in tqdm(reversed(self.ddim_steps), desc='DDIM Sampling', total=self.ddim_steps, leave=False):
+            x_t_minus_1 = self.ddim_p_sample(xt, i, clip)
             denoised_intermediates.append(x_t_minus_1)
             xt = x_t_minus_1
 

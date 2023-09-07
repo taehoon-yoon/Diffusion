@@ -54,6 +54,7 @@ class Trainer:
         self.result_folder = os.path.join(result_folder, exp_name, cur_time)
         self.device = self.diffusion_model.device
         self.clip = clip
+        self.is_ddim_sampling = self.diffusion_model.is_ddim_sampling
 
         dataSet = dataset_wrapper(dataset, self.image_size)
         assert len(dataSet) >= 100, 'you should have at least 100 images in your folder.at least 10k images recommended'
@@ -65,6 +66,8 @@ class Trainer:
         self.optimizer = Adam(self.diffusion_model.parameters(), lr=lr)
 
         self.ema = EMA(self.diffusion_model, beta=ema_decay, update_every=ema_update_every).to(self.device)
+        self.sampler = self.ema.ema_model.ddim_sample if self.is_ddim_sampling else self.ema.ema_model.sample
+
         os.makedirs(self.result_folder, exist_ok=True)
         os.makedirs(os.path.join(self.result_folder, 'clip'), exist_ok=True)
         os.makedirs(os.path.join(self.result_folder, 'no_clip'), exist_ok=True)
@@ -97,11 +100,11 @@ class Trainer:
                 with torch.inference_mode():
                     milestone = cur_step // self.save_and_sample_every
                     batches = num_to_groups(self.num_samples, self.batch_size)
-                    all_images_list = list(map(lambda n: self.ema.ema_model.sample(batch_size=n, clip=True), batches))
-                    all_images_list_no_clip = list(map(lambda n: self.ema.ema_model.sample(batch_size=n, clip=False), batches))
+                    all_images_list = list(map(lambda n: self.sampler(batch_size=n, clip=True), batches))
+                    all_images_list_no_clip = list(map(lambda n: self.sampler(batch_size=n, clip=False), batches))
                 all_images = torch.cat(all_images_list, dim=0)
                 all_images_no_clip = torch.cat(all_images_list_no_clip, dim=0)
-                torchvision.utils.save_image(all_images, os.path.join(self.result_folder, 'clip', f'sample_{milestone}.png'),
-                                             nrow=int(math.sqrt(self.num_samples)))
-                torchvision.utils.save_image(all_images_no_clip, os.path.join(self.result_folder, 'no_clip', f'sample_{milestone}.png'),
-                                             nrow=int(math.sqrt(self.num_samples)))
+                torchvision.utils.save_image(all_images, nrow=int(math.sqrt(self.num_samples)),
+                                             fp=os.path.join(self.result_folder, 'clip', f'sample_{milestone}.png'))
+                torchvision.utils.save_image(all_images_no_clip, nrow=int(math.sqrt(self.num_samples)),
+                                             fp=os.path.join(self.result_folder, 'no_clip', f'sample_{milestone}.png'))
