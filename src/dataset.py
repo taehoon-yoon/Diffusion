@@ -9,7 +9,7 @@ import os
 ssl._create_default_https_context = ssl._create_unverified_context
 
 
-def dataset_wrapper(dataset, image_size, augment_horizontal_flip=True):
+def dataset_wrapper(dataset, image_size, augment_horizontal_flip=True, info_color='light_green'):
     transform = transforms.Compose([
         transforms.Resize(image_size),
         transforms.RandomHorizontalFlip() if augment_horizontal_flip else torch.nn.Identity(),
@@ -18,11 +18,11 @@ def dataset_wrapper(dataset, image_size, augment_horizontal_flip=True):
         transforms.Lambda(lambda x: ((x * 2) - 1))  # -1 ~ 1
     ])
     if os.path.isdir(dataset):
-        print(colored('Loading local file directory', 'light_green'))
+        print(colored('Loading local file directory', info_color))
     else:
         dataset = dataset.lower()
         assert dataset in ['cifar10']
-        print(colored('Loading {} dataset'.format(dataset), 'light_green'))
+        print(colored('Loading {} dataset'.format(dataset), info_color))
         if dataset == 'cifar10':
             trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
             testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)

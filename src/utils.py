@@ -37,20 +37,15 @@ class PositionalEncoding(nn.Module):
 
 
 class FID:
-    def __init__(self, batch_size, dataLoader, sampler, dataset_name, cache_dir='./results/fid_cache/',
-                 num_samples=None, device='cuda'):
+    def __init__(self, batch_size, dataLoader, dataset_name, cache_dir='./results/fid_cache/', device='cuda'):
         self.batch_size = batch_size
         self.dataLoader = dataLoader
-        self.sampler = sampler
         self.cache_dir = cache_dir
         self.dataset_name = dataset_name
-        self.num_samples = num_samples
         self.device = device
         self.inception = InceptionV3([3]).to(device)
 
         os.makedirs(cache_dir, exist_ok=True)
-        notification = make_notification('FID', color='light_magenta')
-        print(notification)
         self.m2, self.s2 = self.load_dataset_stats()
 
     def calculate_inception_features(self, samples):
@@ -91,11 +86,11 @@ class FID:
         return m2, s2
 
     @torch.inference_mode()
-    def fid_score(self):
-        batches = num_to_groups(self.num_samples, self.batch_size)
+    def fid_score(self, sampler, num_samples):
+        batches = num_to_groups(num_samples, self.batch_size)
         stacked_fake_features = list()
         for batch in tqdm(batches, desc='FID score calculation', leave=False):
-            fake_samples = self.sampler(batch, clip=True)
+            fake_samples = sampler(batch, clip=True)
             fake_features = self.calculate_inception_features(fake_samples)
             stacked_fake_features.append(fake_features)
         stacked_fake_features = torch.cat(stacked_fake_features, dim=0).cpu().numpy()
