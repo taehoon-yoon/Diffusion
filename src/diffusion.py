@@ -126,7 +126,7 @@ class GaussianDiffusion(nn.Module):
 
 
 class DDIM_Sampler(nn.Module):
-    def __init__(self, ddpm_diffusion_model, ddim_sampling_steps=100, eta=0, sample_every=5000,
+    def __init__(self, ddpm_diffusion_model, ddim_sampling_steps=100, eta=0, sample_every=5000, fixed_noise=False,
                  calculate_fid=False, num_fid_sample=None, generate_image=True, clip=True, save=False):
         super().__init__()
         self.ddpm_model = ddpm_diffusion_model
@@ -134,6 +134,7 @@ class DDIM_Sampler(nn.Module):
         self.ddim_steps = ddim_sampling_steps
         self.eta = eta
         self.sample_every = sample_every
+        self.fixed_noise = fixed_noise
         self.calculate_fid = calculate_fid
         self.num_fid_sample = num_fid_sample
         self.generate_image = generate_image
@@ -188,9 +189,10 @@ class DDIM_Sampler(nn.Module):
         return x_t_minus_1
 
     @torch.inference_mode()
-    def sample(self, batch_size, return_all_timestep=False, clip=True):
+    def sample(self, batch_size, noise=None, return_all_timestep=False, clip=True):
         clip = clip if clip is not None else self.clip
-        xT = torch.randn([batch_size, self.channel, self.image_size, self.image_size], device=self.device)
+        xT = torch.randn([batch_size, self.channel, self.image_size, self.image_size], device=self.device) \
+            if noise is None else noise.to(self.device)
         denoised_intermediates = [xT]
         xt = xT
         for i in tqdm(reversed(range(0, self.ddim_steps)), desc='DDIM Sampling', total=self.ddim_steps, leave=False):

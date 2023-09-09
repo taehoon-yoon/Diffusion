@@ -84,7 +84,7 @@ class Attention(nn.Module):
 
         self.scale = dim_head ** (-0.5)  # 1 / sqrt(d_k)
         self.norm = RMSNorm(dim)
-        self.dropout = nn.Dropout(dropout) if dropout is not None else None
+        # self.dropout = nn.Dropout(dropout) if dropout is not None else None
         self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, kernel_size=(1, 1), bias=False)
         self.to_out = nn.Conv2d(hidden_dim, dim, kernel_size=(1, 1))
 
@@ -108,7 +108,7 @@ class Attention(nn.Module):
         # n, m is likewise sequence length.
         similarity = torch.einsum('b h n f, b h m f -> b h n m', q, k)  # Q(K^T)
         attention_score = torch.softmax(similarity * self.scale, dim=-1)  # softmax(Q(K^T) / sqrt(d_k))
-        attention_score = self.dropout(attention_score) if self.dropout is not None else attention_score
+        # attention_score = self.dropout(attention_score) if self.dropout is not None else attention_score
         attention = torch.einsum('b h n m, b h m f -> b h n f', attention_score * self.scale, v)
         # attention(Q, K, V) = softmax(Q(K^T) / sqrt(d_k))V / Scaled Dot-Product Attention
 

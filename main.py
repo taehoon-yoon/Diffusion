@@ -4,10 +4,10 @@ from src.diffusion import GaussianDiffusion, DDIM_Sampler
 
 
 def main():
-    model = Unet(dim=32, dim_multiply=(1, 2, 4, 8), device='cuda').to('cuda')
+    model = Unet(dim=128, dim_multiply=(1, 2, 2, 2), device='cuda').to('cuda')
     diffusion = GaussianDiffusion(model, image_size=32).to('cuda')
 
-    ddim_samplers=list()
+    ddim_samplers = list()
     ddim_samplers.append(DDIM_Sampler(diffusion, ddim_sampling_steps=100, sample_every=500, calculate_fid=True,
                                       num_fid_sample=5000, save=True))
     ddim_samplers.append(DDIM_Sampler(diffusion, ddim_sampling_steps=300, sample_every=700, calculate_fid=True,

@@ -1,5 +1,6 @@
 import os
 import math
+import numpy as np
 from .dataset import dataset_wrapper
 import torch
 import torch.nn as nn
@@ -103,6 +104,20 @@ class Trainer:
                     self.tqdm_sampler_name = sampler.sampler_name
                 sampler.num_fid_sample = sampler.num_fid_sample if sampler.num_fid_sample is not None else len(dataSet)
                 self.fid_score_log[sampler.sampler_name] = list()
+            if sampler.fixed_noise:
+                sampler.register_buffer('noise', torch.randn([self.num_samples, sampler.channel,
+                                                              sampler.image_size, sampler.image_size]))
+
+        # Image generation log
+        notification = make_notification('Image Notification', color='light_cyan')
+        print(notification)
+        print(colored('Image will be generated with the following sampler(s)', 'light_cyan'))
+        print(colored('-> DDPM Sampler / Image generation every {} steps'.format(self.save_and_sample_every)))
+        for sampler in self.ddim_samplers:
+            if sampler.generate_image:
+                print(colored('-> {} / Image generation every {} steps / Fixed Noise : {}'
+                              .format(sampler.sampler_name, sampler.sample_every, sampler.fixed_noise), 'light_cyan'))
+        print('\n')
 
         # FID score
         notification = make_notification('FID', color='light_magenta')
@@ -118,14 +133,14 @@ class Trainer:
 
             self.fid_scorer = FID(self.fid_batch_size, dataLoader_fid, dataset_name=exp_name, device=self.device)
 
-            print(colored('FID score will be calculated with following sampler(s)', 'light_magenta'))
+            print(colored('FID score will be calculated with the following sampler(s)', 'light_magenta'))
             if self.ddpm_fid_flag:
                 self.ddpm_num_fid_samples = ddpm_num_fid_samples if ddpm_num_fid_samples is not None else len(dataSet)
-                print(colored('- DDPM Sampler / FID calculation every {} steps with {} generated samples\n'
+                print(colored('-> DDPM Sampler / FID calculation every {} steps with {} generated samples'
                               .format(self.ddpm_fid_score_estimate_every, self.ddpm_num_fid_samples), 'light_magenta'))
             for sampler in self.ddim_samplers:
                 if sampler.calculate_fid:
-                    print(colored('- {} / FID calculation every {} steps with {} generated samples'
+                    print(colored('-> {} / FID calculation every {} steps with {} generated samples'
                                   .format(sampler.sampler_name, sampler.sample_every,
                                           sampler.num_fid_sample), 'light_magenta'))
             print('\n')
@@ -214,8 +229,16 @@ class Trainer:
                     if sampler.generate_image:
                         with torch.inference_mode():
                             batches = num_to_groups(self.num_samples, self.batch_size)
+                            c_batch = np.insert(np.cumsum(np.array(batches)), 0, 0)
                             if sampler.clip is True or sampler.clip == 'both':
-                                imgs = list(map(lambda n: sampler.sample(batch_size=n, clip=True), batches))
+                                if sampler.fixed_noise:
+                                    imgs = list()
+                                    for i in range(len(batches)):
+                                        imgs.append(sampler.sample(batch_size=None,
+                                                                   noise=sampler.noise[c_batch[i]:c_batch[i+1]],
+                                                                   clip=True))
+                                else:
+                                    imgs = list(map(lambda n: sampler.sample(batch_size=n, clip=True), batches))
                                 imgs = torch.cat(imgs, dim=0)
                                 save_image(imgs, nrow=self.nrow,
                                            fp=os.path.join(sampler.save_path, 'clip', f'sample_{cur_step}.png'))
@@ -223,7 +246,14 @@ class Trainer:
                                     self.writer.add_images('{} sampling result (clip)'
                                                            .format(sampler.sampler_name), imgs, cur_step)
                             if sampler.clip is False or sampler.clip == 'both':
-                                imgs_no_clip = list(map(lambda n: sampler.sample(batch_size=n, clip=False), batches))
+                                if sampler.fixed_noise:
+                                    imgs_no_clip = list()
+                                    for i in range(len(batches)):
+                                        imgs_no_clip.append(sampler.sample(batch_size=None,
+                                                                           noise=sampler.noise[c_batch[i]:c_batch[i+1]],
+                                                                           clip=False))
+                                else:
+                                    imgs_no_clip = list(map(lambda n: sampler.sample(n, clip=False), batches))
                                 imgs_no_clip = torch.cat(imgs_no_clip, dim=0)
                                 save_image(imgs_no_clip, nrow=self.nrow,
                                            fp=os.path.join(sampler.save_path, 'no_clip', f'sample_{cur_step}.png'))
