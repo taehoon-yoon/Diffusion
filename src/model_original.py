@@ -40,7 +40,7 @@ class Attention(nn.Module):
         super().__init__()
         self.scale = dim ** (-0.5)  # 1 / sqrt(d_k)
         self.norm = nn.GroupNorm(num_groups=groups, num_channels=dim)
-        self.to_qkv = nn.Conv2d(dim, dim*3, kernel_size=(1, 1))
+        self.to_qkv = nn.Conv2d(dim, dim * 3, kernel_size=(1, 1))
         self.to_out = nn.Conv2d(dim, dim, kernel_size=(1, 1))
 
     def forward(self, x):
@@ -59,25 +59,44 @@ class Attention(nn.Module):
         """
 
         similarity = torch.einsum('b i c, b j c -> b i j', q, k)  # Q(K^T)
-        attention_score = torch.softmax(similarity*self.scale, dim=-1)  # softmax(Q(K^T) / sqrt(d_k))
+        attention_score = torch.softmax(similarity * self.scale, dim=-1)  # softmax(Q(K^T) / sqrt(d_k))
         attention = torch.einsum('b i j, b j c -> b i c', attention_score, v)
         # attention(Q, K, V) = [softmax(Q(K^T) / sqrt(d_k))]V -> Scaled Dot-Product Attention
-        out = rearrange(attention, 'b i c -> b c h w', h=h, w=w)
+        out = rearrange(attention, 'b (h w) c -> b c h w', h=h, w=w)
         return self.to_out(out) + x
 
 
-def downSample(dim_in):
-    return nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), stride=(2, 2))
+def downSample2(dim_in):
+    return nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), stride=(2, 2), padding=1)
 
 
-def upSample(dim_in):
+def upSample2(dim_in):
     return nn.Sequential(nn.Upsample(scale_factor=2, mode='nearest'),
                          nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), padding=1))
 
 
+class downSample(nn.Module):
+    def __init__(self, dim_in):
+        super().__init__()
+        self.downsameple = nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), stride=(2, 2), padding=1)
+
+    def forward(self, x):
+        return self.downsameple(x)
+
+
+class upSample(nn.Module):
+    def __init__(self, dim_in):
+        super().__init__()
+        self.upsample = nn.Sequential(nn.Upsample(scale_factor=2, mode='nearest'),
+                                      nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), padding=1))
+
+    def forward(self, x):
+        return self.upsample(x)
+
+
 class Unet(nn.Module):
     def __init__(self, dim, image_size, dim_multiply=(1, 2, 4, 8), channel=3, num_res_blocks=2,
-                 attn_resolutions=(16, ), dropout=0, device='cuda', groups=32):
+                 attn_resolutions=(16,), dropout=0, device='cuda', groups=32):
         super().__init__()
 
         # Attributes
@@ -86,8 +105,9 @@ class Unet(nn.Module):
         self.time_emb_dim = 4 * self.dim
         self.num_resolutions = len(dim_multiply)
         self.device = device
-        self.resolution = [int(image_size/(2**i)) for i in range(self.num_resolutions)]
+        self.resolution = [int(image_size / (2 ** i)) for i in range(self.num_resolutions)]
         self.hidden_dims = [self.dim, *map(lambda x: x * self.dim, dim_multiply)]
+        self.num_res_blocks = num_res_blocks
 
         # Time embedding
         positional_encoding = PositionalEncoding(self.dim)
@@ -111,16 +131,17 @@ class Unet(nn.Module):
         self.concat_dim.append(self.dim)
 
         for level in range(self.num_resolutions):
-            d_in, d_out = self.hidden_dims[level], self.hidden_dims[level+1]
+            d_in, d_out = self.hidden_dims[level], self.hidden_dims[level + 1]
             for block in range(num_res_blocks):
                 self.input_time_emb_down.append(True)
-                self.down_path.append(ResnetBlock(d_in, d_out, time_emb_dim=self.time_emb_dim, dropout=dropout))
+                d_in_ = d_in if block == 0 else d_out
+                self.down_path.append(ResnetBlock(d_in_, d_out, time_emb_dim=self.time_emb_dim, dropout=dropout))
                 if self.resolution[level] in attn_resolutions:
                     self.concat_dim.append(None)
                     self.input_time_emb_down.append(False)
                     self.down_path.append(Attention(d_out))
                 self.concat_dim.append(d_out)
-            if level != self.num_resolutions-1:
+            if level != self.num_resolutions - 1:
                 self.input_time_emb_down.append(False)
                 self.down_path.append(downSample(d_out))
                 self.concat_dim.append(d_out)
@@ -136,11 +157,12 @@ class Unet(nn.Module):
 
         # Upward Path layer definition
         concat_d = self.concat_dim.copy()
+        concat_d = [i for i in concat_d if i is not None]
         for level in reversed(range(self.num_resolutions)):
             d_out = self.hidden_dims[level + 1]
             for block in range(num_res_blocks + 1):
                 self.input_time_emb_up.append(True)
-                self.up_path.append(ResnetBlock(concat_d.pop()+d_out, d_out, self.time_emb_dim, dropout))
+                self.up_path.append(ResnetBlock(concat_d.pop() + d_out, d_out, self.time_emb_dim, dropout))
                 if self.resolution[level] in attn_resolutions:
                     self.input_time_emb_up.append(False)
                     self.up_path.append(Attention(d_out))
@@ -169,14 +191,17 @@ class Unet(nn.Module):
         # Middle
         for time_emb_bool, layer in zip(self.input_time_emb_middle, self.middle_path):
             x = layer(x, t) if time_emb_bool else layer(x)
-
+        print(list(reversed(self.concat_dim)))
         # Upward
+        print(len(self.up_path))
+        print(len(self.concat_dim))
+        print(len(self.input_time_emb_up))
         for concat_dim, time_emb_bool, layer in zip(reversed(self.concat_dim), self.input_time_emb_up, self.up_path):
-            if concat_dim is not None:
+            print(x.shape, concat[-1].shape, layer.__class__.__name__, concat_dim)
+            if concat_dim is not None and not isinstance(layer, upSample):
                 x = torch.cat((x, concat.pop()), dim=1)
             x = layer(x, t) if time_emb_bool else layer(x)
 
         # Final
         x = self.final_activation(self.final_norm(x))
         return self.final_conv(x)
-

@@ -38,11 +38,12 @@ class Trainer:
 
         # Metadata & Initialization & Make directory for saving files.
         now = datetime.datetime.now()
-        cur_time = now.strftime('%Y-%m-%d_%Hh%Mm')
+        self.cur_time = now.strftime('%Y-%m-%d_%Hh%Mm')
         if exp_name is None:
             exp_name = os.path.basename(dataset)
             if exp_name == '':
                 exp_name = os.path.basename(os.path.dirname(dataset))
+        self.exp_name = exp_name
         self.diffusion_model = diffusion_model
         self.ddim_samplers = ddim_samplers
         self.batch_size = batch_size
@@ -52,7 +53,7 @@ class Trainer:
         self.save_and_sample_every = save_and_sample_every
         self.image_size = self.diffusion_model.image_size
         self.max_grad_norm = max_grad_norm
-        self.result_folder = os.path.join(result_folder, exp_name, cur_time)
+        self.result_folder = os.path.join(result_folder, exp_name, self.cur_time)
         self.ddpm_result_folder = os.path.join(self.result_folder, 'DDPM')
         self.device = self.diffusion_model.device
         self.clip = clip
@@ -60,6 +61,9 @@ class Trainer:
         self.ddpm_fid_score_estimate_every = ddpm_fid_score_estimate_every
         self.cal_fid = True if self.ddpm_fid_flag else False
         self.tqdm_sampler_name = None
+        self.tensorboard = tensorboard
+        self.tensorboard_name = None
+        self.writer = None
         self.global_step = 0
         self.total_step = total_step
         self.fid_score_log = dict()
@@ -112,7 +116,8 @@ class Trainer:
         notification = make_notification('Image Notification', color='light_cyan')
         print(notification)
         print(colored('Image will be generated with the following sampler(s)', 'light_cyan'))
-        print(colored('-> DDPM Sampler / Image generation every {} steps'.format(self.save_and_sample_every)))
+        print(colored('-> DDPM Sampler / Image generation every {} steps'.format(self.save_and_sample_every),
+                      'light_cyan'))
         for sampler in self.ddim_samplers:
             if sampler.generate_image:
                 print(colored('-> {} / Image generation every {} steps / Fixed Noise : {}'
@@ -156,20 +161,18 @@ class Trainer:
                 """
                 print(colored(msg, 'red'))
 
+    def train(self):
         # Tensorboard
-        self.writer = None
-        if tensorboard:
+        if self.tensorboard:
             os.makedirs('./tensorboard', exist_ok=True)
-            tensorboard_name = exp_name + '_' + cur_time
+            self.tensorboard_name = self.exp_name + '_' + self.cur_time
             notification = make_notification('Tensorboard', color='light_blue')
             print(notification)
             print(colored('Tensorboard Available!', 'light_blue'))
-            print(colored('Tensorboard name: {}'.format(tensorboard_name), 'light_blue'))
+            print(colored('Tensorboard name: {}'.format(self.tensorboard_name), 'light_blue'))
             print(colored('Launch Tensorboard by running following command on terminal', 'light_blue'))
             print(colored('tensorboard --logdir ./tensorboard\n', 'light_blue'))
-            self.writer = SummaryWriter(os.path.join('./tensorboard', tensorboard_name))
-
-    def train(self):
+            self.writer = SummaryWriter(os.path.join('./tensorboard', self.tensorboard_name))
         notification = make_notification('Training', color='light_yellow', boundary='+')
         print(notification)
         cur_fid = 'NAN'
@@ -286,14 +289,23 @@ class Trainer:
             'model': self.diffusion_model.state_dict(),
             'opt': self.optimizer.state_dict(),
             'ema': self.ema.state_dict(),
-            'fid_logger': self.fid_score_log
+            'fid_logger': self.fid_score_log,
+            'tensorboard': self.tensorboard_name
         }
         for sampler in self.ddim_samplers:
             data[sampler.sampler_name] = sampler.state_dict()
         torch.save(data, os.path.join(self.result_folder, 'model_{}.pt'.format(name)))
 
-    def load(self, name):
-        data = torch.load(os.path.join(self.result_folder, 'model_{}.pt'.format(name)), map_location=self.device)
+    def load(self, path, tensorboard_path=None):
+        if not os.path.exists(path):
+            print(make_notification('ERROR', color='red', boundary='*'))
+            print(colored('No saved checkpoint is detected. Please check you gave existing path!'))
+            exit()
+        if tensorboard_path is not None and not os.path.exists(tensorboard_path):
+            print(make_notification('ERROR', color='red', boundary='*'))
+            print(colored('No tensorboard is detected. Please check you gave existing path!'))
+            exit()
+        data = torch.load(path, map_location=self.device)
         self.diffusion_model.load_state_dict(data['model'])
         self.global_step = data['global_step']
         self.optimizer.load_state_dict(data['opt'])
@@ -301,3 +313,5 @@ class Trainer:
         self.fid_score_log = data['fid_logger']
         for sampler in self.ddim_samplers:
             sampler.load_state_dict(data[sampler.sampler_name])
+        if tensorboard_path is not None:
+            self.tensorboard_name = data['tensorboard']
