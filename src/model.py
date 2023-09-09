@@ -77,14 +77,13 @@ class ResnetBlock(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, head=4, dim_head=32, dropout=None):
+    def __init__(self, dim, head=4, dim_head=32):
         super().__init__()
         self.head = head
         hidden_dim = head * dim_head
 
         self.scale = dim_head ** (-0.5)  # 1 / sqrt(d_k)
         self.norm = RMSNorm(dim)
-        # self.dropout = nn.Dropout(dropout) if dropout is not None else None
         self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, kernel_size=(1, 1), bias=False)
         self.to_out = nn.Conv2d(hidden_dim, dim, kernel_size=(1, 1))
 
@@ -108,9 +107,8 @@ class Attention(nn.Module):
         # n, m is likewise sequence length.
         similarity = torch.einsum('b h n f, b h m f -> b h n m', q, k)  # Q(K^T)
         attention_score = torch.softmax(similarity * self.scale, dim=-1)  # softmax(Q(K^T) / sqrt(d_k))
-        # attention_score = self.dropout(attention_score) if self.dropout is not None else attention_score
-        attention = torch.einsum('b h n m, b h m f -> b h n f', attention_score * self.scale, v)
-        # attention(Q, K, V) = softmax(Q(K^T) / sqrt(d_k))V / Scaled Dot-Product Attention
+        attention = torch.einsum('b h n m, b h m f -> b h n f', attention_score, v)
+        # attention(Q, K, V) = [softmax(Q(K^T) / sqrt(d_k))]V -> Scaled Dot-Product Attention
 
         out = rearrange(attention, 'b h (i j) f -> b (h f) i j', i=i, j=j)
         return self.to_out(out)
@@ -194,7 +192,7 @@ class Unet(nn.Module):
                 downSample(dim_in, dim_out) if not isLast else nn.Conv2d(dim_in, dim_out, kernel_size=(3, 3), padding=1)
             ]))
 
-        # Middle later definition
+        # Middle layer definition
         mid_dim = self.hidden_dims[-1]
         self.mid_resnet_block1 = resnet_block(mid_dim, mid_dim)
         self.mid_attention = Attention(mid_dim, head=attn_heads, dim_head=attn_head_dim)
