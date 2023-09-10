@@ -1,4 +1,4 @@
-from src import model
+from src import model_torch
 from src import model_original
 from src.trainer import Trainer
 from src.diffusion import GaussianDiffusion, DDIM_Sampler
@@ -17,7 +17,7 @@ def main(args):
     if config['type'] == 'original':
         unet = model_original.Unet(**unet_cfg).to(args.device)
     elif config['type'] == 'torch':
-        unet = model.Unet(**unet_cfg).to(args.device)
+        unet = model_torch.Unet(**unet_cfg).to(args.device)
     else:
         unet = None
         print("Unet type must be one of ['original', 'torch']")
@@ -30,6 +30,8 @@ def main(args):
         ddim_samplers.append(DDIM_Sampler(diffusion, **sampler_cfg))
 
     trainer = Trainer(diffusion, ddim_samplers=ddim_samplers, **trainer_cfg)
+    if args.load is not None:
+        trainer.load(args.load, args.tensorboard)
     trainer.train()
 
 
@@ -37,6 +39,8 @@ if __name__ == '__main__':
     parse = argparse.ArgumentParser(description='DDPM & DDIM')
     parse.add_argument('-c', '--config', type=str, default='./config/cifar10.yaml')
     parse.add_argument('-d', '--device', type=str, choices=['cuda', 'cpu'], default='cuda')
+    parse.add_argument('-l', '--load', type=str, default=None)
+    parse.add_argument('-t', '--tensorboard', type=str, default=None)
     args = parse.parse_args()
 
     data = {

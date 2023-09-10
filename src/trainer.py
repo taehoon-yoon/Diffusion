@@ -165,7 +165,8 @@ class Trainer:
         # Tensorboard
         if self.tensorboard:
             os.makedirs('./tensorboard', exist_ok=True)
-            self.tensorboard_name = self.exp_name + '_' + self.cur_time
+            self.tensorboard_name = self.exp_name + '_' + self.cur_time \
+                if self.tensorboard_name is None else self.tensorboard_name
             notification = make_notification('Tensorboard', color='light_blue')
             print(notification)
             print(colored('Tensorboard Available!', 'light_blue'))
@@ -190,12 +191,12 @@ class Trainer:
 
             vis_fid = cur_fid if isinstance(cur_fid, str) else '{:.04f}'.format(cur_fid)
             stepTQDM.set_postfix({'loss': '{:.04f}'.format(loss.item()), 'FID': vis_fid})
-            if self.writer is not None:
-                self.writer.add_scalar('Loss', loss.item(), cur_step)
 
             self.ema.ema_model.eval()
             # DDPM Sampler for generating images
             if cur_step != 0 and (cur_step % self.save_and_sample_every) == 0:
+                if self.writer is not None:
+                    self.writer.add_scalar('Loss', loss.item(), cur_step)
                 with torch.inference_mode():
                     batches = num_to_groups(self.num_samples, self.batch_size)
                     if self.clip is True or self.clip == 'both':
@@ -299,12 +300,13 @@ class Trainer:
     def load(self, path, tensorboard_path=None):
         if not os.path.exists(path):
             print(make_notification('ERROR', color='red', boundary='*'))
-            print(colored('No saved checkpoint is detected. Please check you gave existing path!'))
+            print(colored('No saved checkpoint is detected. Please check you gave existing path!', 'red'))
             exit()
         if tensorboard_path is not None and not os.path.exists(tensorboard_path):
             print(make_notification('ERROR', color='red', boundary='*'))
-            print(colored('No tensorboard is detected. Please check you gave existing path!'))
+            print(colored('No tensorboard is detected. Please check you gave existing path!', 'red'))
             exit()
+        print(make_notification('Loading Checkpoint', color='green'))
         data = torch.load(path, map_location=self.device)
         self.diffusion_model.load_state_dict(data['model'])
         self.global_step = data['global_step']
@@ -315,3 +317,4 @@ class Trainer:
             sampler.load_state_dict(data[sampler.sampler_name])
         if tensorboard_path is not None:
             self.tensorboard_name = data['tensorboard']
+        print(colored('Successfully loaded checkpoint!\n', 'green'))

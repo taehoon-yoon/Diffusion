@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from einops import rearrange
-from einops.layers.torch import Rearrange
-from functools import partial
 from .utils import PositionalEncoding
 
 
 class ResnetBlock(nn.Module):
     def __init__(self, dim, dim_out=None, time_emb_dim=None, dropout=None, groups=32):
         super().__init__()
+
+        self.dim, self.dim_out = dim, dim_out
+
         dim_out = dim if dim_out is None else dim_out
         self.norm1 = nn.GroupNorm(num_groups=groups, num_channels=dim)
         self.activation1 = nn.SiLU()
@@ -38,6 +38,9 @@ class ResnetBlock(nn.Module):
 class Attention(nn.Module):
     def __init__(self, dim, groups=32):
         super().__init__()
+
+        self.dim, self.dim_out = dim, dim
+
         self.scale = dim ** (-0.5)  # 1 / sqrt(d_k)
         self.norm = nn.GroupNorm(num_groups=groups, num_channels=dim)
         self.to_qkv = nn.Conv2d(dim, dim * 3, kernel_size=(1, 1))
@@ -66,18 +69,26 @@ class Attention(nn.Module):
         return self.to_out(out) + x
 
 
-def downSample2(dim_in):
-    return nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), stride=(2, 2), padding=1)
+class ResnetAttentionBlock(nn.Module):
+    def __init__(self, dim, dim_out=None, time_emb_dim=None, dropout=None, groups=32):
+        super().__init__()
 
+        self.dim, self.dim_out = dim, dim_out
 
-def upSample2(dim_in):
-    return nn.Sequential(nn.Upsample(scale_factor=2, mode='nearest'),
-                         nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), padding=1))
+        self.resnet = ResnetBlock(dim, dim_out, time_emb_dim, dropout, groups)
+        self.attention = Attention(dim_out, groups)
+
+    def forward(self, x, time_emb=None):
+        x = self.resnet(x, time_emb)
+        return self.attention(x)
 
 
 class downSample(nn.Module):
     def __init__(self, dim_in):
         super().__init__()
+
+        self.dim, self.dim_out = dim_in, dim_in
+
         self.downsameple = nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), stride=(2, 2), padding=1)
 
     def forward(self, x):
@@ -87,6 +98,9 @@ class downSample(nn.Module):
 class upSample(nn.Module):
     def __init__(self, dim_in):
         super().__init__()
+
+        self.dim, self.dim_out = dim_in, dim_in
+
         self.upsample = nn.Sequential(nn.Upsample(scale_factor=2, mode='nearest'),
                                       nn.Conv2d(dim_in, dim_in, kernel_size=(3, 3), padding=1))
 
@@ -98,6 +112,7 @@ class Unet(nn.Module):
     def __init__(self, dim, image_size, dim_multiply=(1, 2, 4, 8), channel=3, num_res_blocks=2,
                  attn_resolutions=(16,), dropout=0, device='cuda', groups=32):
         super().__init__()
+        assert dim % groups == 0, 'parameter [groups] must be divisible by parameter [dim]'
 
         # Attributes
         self.dim = dim
@@ -118,59 +133,45 @@ class Unet(nn.Module):
 
         # Layer definition
         self.down_path = nn.ModuleList([])
-        self.middle_path = nn.ModuleList([])
         self.up_path = nn.ModuleList([])
-        self.concat_dim = list()
-        self.input_time_emb_down = list()
-        self.input_time_emb_middle = list()
-        self.input_time_emb_up = list()
+        concat_dim = list()
 
         # Downward Path layer definition
-        self.input_time_emb_down.append(False)
-        self.down_path.append(nn.Conv2d(channel, self.dim, kernel_size=(3, 3), padding=1))
-        self.concat_dim.append(self.dim)
+        self.init_conv = nn.Conv2d(channel, self.dim, kernel_size=(3, 3), padding=1)
+        concat_dim.append(self.dim)
 
         for level in range(self.num_resolutions):
             d_in, d_out = self.hidden_dims[level], self.hidden_dims[level + 1]
             for block in range(num_res_blocks):
-                self.input_time_emb_down.append(True)
                 d_in_ = d_in if block == 0 else d_out
-                self.down_path.append(ResnetBlock(d_in_, d_out, time_emb_dim=self.time_emb_dim, dropout=dropout))
                 if self.resolution[level] in attn_resolutions:
-                    self.concat_dim.append(None)
-                    self.input_time_emb_down.append(False)
-                    self.down_path.append(Attention(d_out))
-                self.concat_dim.append(d_out)
+                    self.down_path.append(ResnetAttentionBlock(d_in_, d_out, self.time_emb_dim, dropout, groups))
+                else:
+                    self.down_path.append(ResnetBlock(d_in_, d_out, self.time_emb_dim, dropout, groups))
+                concat_dim.append(d_out)
             if level != self.num_resolutions - 1:
-                self.input_time_emb_down.append(False)
                 self.down_path.append(downSample(d_out))
-                self.concat_dim.append(d_out)
+                concat_dim.append(d_out)
 
         # Middle layer definition
         mid_dim = self.hidden_dims[-1]
-        self.input_time_emb_middle.append(True)
-        self.middle_path.append(ResnetBlock(mid_dim, mid_dim, self.time_emb_dim, dropout))
-        self.input_time_emb_middle.append(False)
-        self.middle_path.append(Attention(mid_dim))
-        self.input_time_emb_middle.append(True)
-        self.middle_path.append(ResnetBlock(mid_dim, mid_dim, self.time_emb_dim, dropout))
+        self.middle_resnet_attention = ResnetAttentionBlock(mid_dim, mid_dim, self.time_emb_dim, dropout, groups)
+        self.middle_resnet = ResnetBlock(mid_dim, mid_dim, self.time_emb_dim, dropout, groups)
 
         # Upward Path layer definition
-        concat_d = self.concat_dim.copy()
-        concat_d = [i for i in concat_d if i is not None]
         for level in reversed(range(self.num_resolutions)):
             d_out = self.hidden_dims[level + 1]
             for block in range(num_res_blocks + 1):
-                self.input_time_emb_up.append(True)
-                self.up_path.append(ResnetBlock(concat_d.pop() + d_out, d_out, self.time_emb_dim, dropout))
+                d_in = self.hidden_dims[level + 2] if block == 0 and level != self.num_resolutions - 1 else d_out
+                d_in = d_in + concat_dim.pop()
                 if self.resolution[level] in attn_resolutions:
-                    self.input_time_emb_up.append(False)
-                    self.up_path.append(Attention(d_out))
+                    self.up_path.append(ResnetAttentionBlock(d_in, d_out, self.time_emb_dim, dropout, groups))
+                else:
+                    self.up_path.append(ResnetBlock(d_in, d_out, self.time_emb_dim, dropout, groups))
             if level != 0:
-                self.input_time_emb_up.append(False)
                 self.up_path.append(upSample(d_out))
 
-        assert not concat_d, 'Error in concatenation between downward path and upward path.'
+        assert not concat_dim, 'Error in concatenation between downward path and upward path.'
 
         # Output layer
         final_ch = self.hidden_dims[1]
@@ -180,28 +181,44 @@ class Unet(nn.Module):
 
     def forward(self, x, time):
         t = self.time_mlp(time)
-
         # Downward
         concat = list()
-        for concat_dim, time_emb_bool, layer in zip(self.concat_dim, self.input_time_emb_down, self.down_path):
-            x = layer(x, t) if time_emb_bool else layer(x)
-            if concat_dim is not None:
-                concat.append(x)
+        x = self.init_conv(x)
+        concat.append(x)
+        for layer in self.down_path:
+            x = layer(x, t) if not isinstance(layer, (upSample, downSample)) else layer(x)
+            concat.append(x)
 
         # Middle
-        for time_emb_bool, layer in zip(self.input_time_emb_middle, self.middle_path):
-            x = layer(x, t) if time_emb_bool else layer(x)
-        print(list(reversed(self.concat_dim)))
+        x = self.middle_resnet_attention(x, t)
+        x = self.middle_resnet(x, t)
+
         # Upward
-        print(len(self.up_path))
-        print(len(self.concat_dim))
-        print(len(self.input_time_emb_up))
-        for concat_dim, time_emb_bool, layer in zip(reversed(self.concat_dim), self.input_time_emb_up, self.up_path):
-            print(x.shape, concat[-1].shape, layer.__class__.__name__, concat_dim)
-            if concat_dim is not None and not isinstance(layer, upSample):
+        for layer in self.up_path:
+            if not isinstance(layer, upSample):
                 x = torch.cat((x, concat.pop()), dim=1)
-            x = layer(x, t) if time_emb_bool else layer(x)
+            x = layer(x, t) if not isinstance(layer, (upSample, downSample)) else layer(x)
 
         # Final
         x = self.final_activation(self.final_norm(x))
         return self.final_conv(x)
+
+    def print_model_structure(self):
+        for i in self.down_path:
+            if i.__class__.__name__ == 'downSample':
+                print('-' * 20)
+            if i.__class__.__name__ == "Conv2d":
+
+                print(i.__class__.__name__)
+            else:
+                print(i.__class__.__name__, i.dim, i.dim_out)
+        print('\n')
+        print('=' * 20)
+        print('\n')
+        for i in self.up_path:
+            if i.__class__.__name__ == 'upSample':
+                print('-' * 20)
+            if i.__class__.__name__ == "Conv2d":
+                print(i.__class__.__name__)
+            else:
+                print(i.__class__.__name__, i.dim, i.dim_out)
