@@ -47,48 +47,41 @@ if __name__ == '__main__':
         'type': 'original',
         'unet': {
             'dim': 128,
-            'image_size': 32,
-            'dim_multiply': [1, 2, 2, 2],
+            'image_size': 256,
+            'dim_multiply': [1, 1, 2, 2, 4, 4],
             'attn_resolutions': [16, ],
-            'dropout': 0.1,
+            'dropout': 0.0,
             'num_res_blocks': 2
         },
         'ddim': {
             0: {
-                'ddim_sampling_steps': 20,
-                'sample_every': 1000,
-                'calculate_fid': True,
-                'num_fid_sample': 60000,
-                'save': True
-            },
-            1: {
                 'ddim_sampling_steps': 100,
                 'sample_every': 5000,
                 'calculate_fid': True,
-                'num_fid_sample': 6000,
+                'num_fid_sample': 3000,
                 'save': True
             },
-            2: {
-                'ddim_sampling_steps': 500,
+            1: {
+                'ddim_sampling_steps': 20,
                 'sample_every': 10000,
                 'calculate_fid': True,
-                'num_fid_sample': 6000,
+                'num_fid_sample': 30000,
                 'save': True
-            }
+            },
         },
         'trainer': {
-            'dataset': 'cifar10',
-            'batch_size': 128,
-            'lr': 2e-4,
+            'dataset': './data/celeba_hq_256',
+            'batch_size': 64,
+            'lr': 2e-5,
             'clip': 'both',
-            'total_step': 600000,
+            'total_step': 500000,
             'save_and_sample_every': 1000,
-            'fid_estimate_batch_size': 128,
+            'fid_estimate_batch_size': 64,
             'num_samples': 64
         }
 
     }
-    # with open('./config/cifar10.yaml', 'w') as f:
+    # with open('./config/celeba_hq_256.yaml', 'w') as f:
     #     yaml.dump(data, f, sort_keys=False)
 
     main(args)

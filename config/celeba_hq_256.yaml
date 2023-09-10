@@ -1,0 +1,36 @@
+type: original
+unet:
+  dim: 128
+  image_size: 64
+  dim_multiply:
+  - 1
+  - 1
+  - 2
+  - 2
+  - 4
+  attn_resolutions:
+  - 16
+  dropout: 0.0
+  num_res_blocks: 2
+ddim:
+  0:
+    ddim_sampling_steps: 100
+    sample_every: 5000
+    calculate_fid: true
+    num_fid_sample: 3000
+    save: true
+  1:
+    ddim_sampling_steps: 20
+    sample_every: 10000
+    calculate_fid: true
+    num_fid_sample: 30000
+    save: true
+trainer:
+  dataset: ./data/celeba_hq_256
+  batch_size: 64
+  lr: 2.0e-05
+  clip: both
+  total_step: 500000
+  save_and_sample_every: 1000
+  fid_estimate_batch_size: 64
+  num_samples: 64

@@ -136,7 +136,8 @@ class Trainer:
                                           augment_horizontal_flip=False, info_color='light_magenta')
             dataLoader_fid = DataLoader(dataSet_fid, batch_size=self.fid_batch_size, num_workers=num_workers)
 
-            self.fid_scorer = FID(self.fid_batch_size, dataLoader_fid, dataset_name=exp_name, device=self.device)
+            self.fid_scorer = FID(self.fid_batch_size, dataLoader_fid, dataset_name=exp_name, device=self.device,
+                                  no_label=os.path.isdir(dataset))
 
             print(colored('FID score will be calculated with the following sampler(s)', 'light_magenta'))
             if self.ddpm_fid_flag:

@@ -37,12 +37,14 @@ class PositionalEncoding(nn.Module):
 
 
 class FID:
-    def __init__(self, batch_size, dataLoader, dataset_name, cache_dir='./results/fid_cache/', device='cuda'):
+    def __init__(self, batch_size, dataLoader, dataset_name, cache_dir='./results/fid_cache/', device='cuda',
+                 no_label=False):
         self.batch_size = batch_size
         self.dataLoader = dataLoader
         self.cache_dir = cache_dir
         self.dataset_name = dataset_name
         self.device = device
+        self.no_label = no_label
         self.inception = InceptionV3([3]).to(device)
 
         os.makedirs(cache_dir, exist_ok=True)
@@ -74,7 +76,7 @@ class FID:
             print(colored('Computing Inception features for {} '
                           'samples from real dataset.'.format(len(self.dataLoader.dataset)), 'light_magenta'))
             for batch in tqdm(self.dataLoader, desc='Calculating stats for data distribution', leave=False):
-                real_samples = batch[0].to(self.device)
+                real_samples = batch.to(self.device) if self.no_label else batch[0].to(self.device)
                 real_features = self.calculate_inception_features(real_samples)
                 stacked_real_features.append(real_features)
 
