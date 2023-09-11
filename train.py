@@ -29,7 +29,7 @@ def main(args):
     for sampler_cfg in ddim_cfg.values():
         ddim_samplers.append(DDIM_Sampler(diffusion, **sampler_cfg))
 
-    trainer = Trainer(diffusion, ddim_samplers=ddim_samplers, **trainer_cfg)
+    trainer = Trainer(diffusion, ddim_samplers=ddim_samplers, cpu_percentage=args.cpu_percentage, **trainer_cfg)
     if args.load is not None:
         trainer.load(args.load, args.tensorboard)
     trainer.train()
@@ -38,9 +38,10 @@ def main(args):
 if __name__ == '__main__':
     parse = argparse.ArgumentParser(description='DDPM & DDIM')
     parse.add_argument('-c', '--config', type=str, default='./config/cifar10.yaml')
-    parse.add_argument('-d', '--device', type=str, choices=['cuda', 'cpu'], default='cuda')
     parse.add_argument('-l', '--load', type=str, default=None)
     parse.add_argument('-t', '--tensorboard', type=str, default=None)
+    parse.add_argument('-d', '--device', type=str, choices=['cuda', 'cpu'], default='cuda')
+    parse.add_argument('--cpu_percentage', type=float, default=0)
     args = parse.parse_args()
 
     data = {

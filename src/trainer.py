@@ -83,7 +83,8 @@ class Trainer:
         # TODO: pin_memory?
         num_workers = int(CPU_cnt * cpu_percentage)
         assert num_workers <= CPU_cnt, "cpu_percentage must be [0.0, 1.0]"
-        dataLoader = DataLoader(dataSet, batch_size=self.batch_size, shuffle=True, num_workers=num_workers)
+        dataLoader = DataLoader(dataSet, batch_size=self.batch_size, shuffle=True,
+                                num_workers=num_workers, pin_memory=True)
         self.dataLoader = cycle(dataLoader) if os.path.isdir(dataset) else cycle_with_label(dataLoader)
         self.optimizer = Adam(self.diffusion_model.parameters(), lr=lr)
         self.ema = EMA(self.diffusion_model, beta=ema_decay, update_every=ema_update_every).to(self.device)
@@ -161,6 +162,8 @@ class Trainer:
                 set [ddpm_fid_score_estimate_every] parameter to None while instantiating Trainer.\n
                 """
                 print(colored(msg, 'red'))
+            del dataLoader_fid
+            del dataSet_fid
 
     def train(self):
         # Tensorboard
