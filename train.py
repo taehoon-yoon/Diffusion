@@ -42,7 +42,7 @@ if __name__ == '__main__':
     parse.add_argument('-t', '--tensorboard', type=str, default=None)
     parse.add_argument('-d', '--device', type=str, choices=['cuda', 'cpu'], default='cuda')
     parse.add_argument('--cpu_percentage', type=float, default=0)
-    parse.add_argument('--no_prev_ddim_setting', type=bool, default=False)
+    parse.add_argument('--no_prev_ddim_setting', action='store_true')
     args = parse.parse_args()
 
     data = {
