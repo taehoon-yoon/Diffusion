@@ -316,10 +316,14 @@ class Trainer:
         self.global_step = data['global_step']
         self.optimizer.load_state_dict(data['opt'])
         self.ema.load_state_dict(data['ema'])
-        self.fid_score_log = data['fid_logger']
+        fid_score_log = data['fid_logger']
         if not no_prev_ddim_setting:
             for sampler in self.ddim_samplers:
                 sampler.load_state_dict(data[sampler.sampler_name])
+            for key, val in self.fid_score_log:
+                if key not in fid_score_log:
+                    fid_score_log[key] = val
+        self.fid_score_log = fid_score_log
         if tensorboard_path is not None:
             self.tensorboard_name = data['tensorboard']
         print(colored('Successfully loaded checkpoint!\n', 'green'))
