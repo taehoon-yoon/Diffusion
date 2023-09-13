@@ -2,4 +2,6 @@
 data/
 __pycache__/
 results/
+inference_results/
 tensorboard/
+*.pt
