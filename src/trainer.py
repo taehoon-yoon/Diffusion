@@ -114,7 +114,7 @@ class Trainer:
                                                               sampler.image_size, sampler.image_size]))
 
         # Image generation log
-        notification = make_notification('Image Notification', color='light_cyan')
+        notification = make_notification('Image Generation', color='light_cyan')
         print(notification)
         print(colored('Image will be generated with the following sampler(s)', 'light_cyan'))
         print(colored('-> DDPM Sampler / Image generation every {} steps'.format(self.save_and_sample_every),
@@ -301,7 +301,7 @@ class Trainer:
             data[sampler.sampler_name] = sampler.state_dict()
         torch.save(data, os.path.join(self.result_folder, 'model_{}.pt'.format(name)))
 
-    def load(self, path, tensorboard_path=None):
+    def load(self, path, tensorboard_path=None, no_prev_ddim_setting=False):
         if not os.path.exists(path):
             print(make_notification('ERROR', color='red', boundary='*'))
             print(colored('No saved checkpoint is detected. Please check you gave existing path!', 'red'))
@@ -317,8 +317,9 @@ class Trainer:
         self.optimizer.load_state_dict(data['opt'])
         self.ema.load_state_dict(data['ema'])
         self.fid_score_log = data['fid_logger']
-        for sampler in self.ddim_samplers:
-            sampler.load_state_dict(data[sampler.sampler_name])
+        if not no_prev_ddim_setting:
+            for sampler in self.ddim_samplers:
+                sampler.load_state_dict(data[sampler.sampler_name])
         if tensorboard_path is not None:
             self.tensorboard_name = data['tensorboard']
         print(colored('Successfully loaded checkpoint!\n', 'green'))
