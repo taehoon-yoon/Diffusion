@@ -317,12 +317,13 @@ class Trainer:
         self.optimizer.load_state_dict(data['opt'])
         self.ema.load_state_dict(data['ema'])
         fid_score_log = data['fid_logger']
-        if not no_prev_ddim_setting:
-            for sampler in self.ddim_samplers:
-                sampler.load_state_dict(data[sampler.sampler_name])
-            for key, val in self.fid_score_log:
+        if no_prev_ddim_setting:
+            for key, val in self.fid_score_log.items():
                 if key not in fid_score_log:
                     fid_score_log[key] = val
+        else:
+            for sampler in self.ddim_samplers:
+                sampler.load_state_dict(data[sampler.sampler_name])
         self.fid_score_log = fid_score_log
         if tensorboard_path is not None:
             self.tensorboard_name = data['tensorboard']
