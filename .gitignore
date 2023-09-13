@@ -5,3 +5,4 @@ results/
 inference_results/
 tensorboard/
 *.pt
+tmp*
