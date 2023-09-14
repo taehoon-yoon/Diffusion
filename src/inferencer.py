@@ -100,6 +100,7 @@ class Inferencer:
 
     @torch.inference_mode()
     def inference(self):
+        self.diffusion_model.eval()
         notification = make_notification('Inferencing', color='light_yellow', boundary='+')
         print(notification)
         print(colored('Image Generation\n', 'light_yellow'))
