@@ -13,6 +13,12 @@ unet:
   num_res_blocks: 2
 ddim:
   0:
+    ddim_sampling_steps: 20
+    sample_every: 5000
+    calculate_fid: true
+    num_fid_sample: 6000
+    save: true
+  1:
     ddim_sampling_steps: 50
     sample_every: 50000
     calculate_fid: true
@@ -31,6 +37,6 @@ trainer:
   lr: 0.0002
   clip: both
   total_step: 600000
-  save_and_sample_every: 1000
+  save_and_sample_every: 2500
   fid_estimate_batch_size: 128
   num_samples: 64
