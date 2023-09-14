@@ -129,8 +129,6 @@ class DDIM_Sampler(nn.Module):
     def __init__(self, ddpm_diffusion_model, ddim_sampling_steps=100, eta=0, sample_every=5000, fixed_noise=False,
                  calculate_fid=False, num_fid_sample=None, generate_image=True, clip=True, save=False):
         super().__init__()
-        self.ddpm_model = ddpm_diffusion_model
-        self.unet = self.ddpm_model.unet
         self.ddim_steps = ddim_sampling_steps
         self.eta = eta
         self.sample_every = sample_every
@@ -145,14 +143,14 @@ class DDIM_Sampler(nn.Module):
         self.save = save
         self.sampler_name = None
         self.save_path = None
-        ddpm_steps = self.ddpm_model.time_step
+        ddpm_steps = ddpm_diffusion_model.time_step
         assert self.ddim_steps <= ddpm_steps, 'DDIM sampling step must be smaller or equal to DDPM sampling step'
         assert clip in [True, False, 'both'], "clip must be one of [True, False, 'both']"
         if self.save:
             assert self.calculate_fid is True, 'To save model based on FID score, you must set [calculate_fid] to True'
         self.register_buffer('best_fid', torch.tensor([1e10], dtype=torch.float32))
 
-        alpha_bar = self.ddpm_model.alpha_bar
+        alpha_bar = ddpm_diffusion_model.alpha_bar
         # One thing you mush notice is that although sampling time is indexed as [1,...T] in paper,
         # since in computer program we index from [0,...T-1] rather than [1,...T],
         # value of tau ranges from [-1, ...T-1] where t=-1 indicate initial state (Data distribution)
@@ -173,15 +171,14 @@ class DDIM_Sampler(nn.Module):
         assert self.coeff[0] == 0.0 and self.sqrt_alpha_i_min_1[0] == 1.0, 'DDIM parameter error'
 
     @torch.inference_mode()
-    def ddim_p_sample(self, xt, i, clip=True):
+    def ddim_p_sample(self, model, xt, i, clip=True):
         t = self.tau[i]
         batched_time = torch.full((xt.shape[0],), t, device=self.device, dtype=torch.long)
-        pred_noise = self.unet(xt, batched_time)  # corresponds to epsilon_{theta}
-        x0 = self.ddpm_model.sqrt_recip_alpha_bar[t] * xt - self.ddpm_model.sqrt_recip_alpha_bar_min_1[t] * pred_noise
+        pred_noise = model.unet(xt, batched_time)  # corresponds to epsilon_{theta}
+        x0 = model.sqrt_recip_alpha_bar[t] * xt - model.sqrt_recip_alpha_bar_min_1[t] * pred_noise
         if clip:
             x0.clamp_(-1., 1.)
-            pred_noise = \
-                (self.ddpm_model.sqrt_recip_alpha_bar[t] * xt - x0) / self.ddpm_model.sqrt_recip_alpha_bar_min_1[t]
+            pred_noise = (model.sqrt_recip_alpha_bar[t] * xt - x0) / model.sqrt_recip_alpha_bar_min_1[t]
 
         mean = self.sqrt_alpha_i_min_1[i] * x0 + self.coeff[i] * pred_noise
         noise = torch.randn_like(xt) if i > 0 else 0.
@@ -189,14 +186,14 @@ class DDIM_Sampler(nn.Module):
         return x_t_minus_1
 
     @torch.inference_mode()
-    def sample(self, batch_size, noise=None, return_all_timestep=False, clip=True):
+    def sample(self, diffusion_model, batch_size, noise=None, return_all_timestep=False, clip=True):
         clip = clip if clip is not None else self.clip
         xT = torch.randn([batch_size, self.channel, self.image_size, self.image_size], device=self.device) \
             if noise is None else noise.to(self.device)
         denoised_intermediates = [xT]
         xt = xT
         for i in tqdm(reversed(range(0, self.ddim_steps)), desc='DDIM Sampling', total=self.ddim_steps, leave=False):
-            x_t_minus_1 = self.ddim_p_sample(xt, i, clip)
+            x_t_minus_1 = self.ddim_p_sample(diffusion_model, xt, i, clip)
             denoised_intermediates.append(x_t_minus_1)
             xt = x_t_minus_1
 

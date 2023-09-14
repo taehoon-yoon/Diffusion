@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import save_image
 from multiprocessing import cpu_count
 from ema_pytorch import EMA
+from functools import partial
 from tqdm import tqdm
 import datetime
 from termcolor import colored
@@ -203,20 +204,15 @@ class Trainer:
                     self.writer.add_scalar('Loss', loss.item(), cur_step)
                 with torch.inference_mode():
                     batches = num_to_groups(self.num_samples, self.batch_size)
-                    if self.clip is True or self.clip == 'both':
-                        imgs = list(map(lambda n: self.ema.ema_model.sample(batch_size=n, clip=True), batches))
+                    for i, j in zip([True, False], ['clip', 'no_clip']):
+                        if self.clip not in [i, 'both']:
+                            continue
+                        imgs = list(map(lambda n: self.ema.ema_model.sample(batch_size=n, clip=i), batches))
                         imgs = torch.cat(imgs, dim=0)
                         save_image(imgs, nrow=self.nrow,
-                                   fp=os.path.join(self.ddpm_result_folder, 'clip', f'sample_{cur_step}.png'))
+                                   fp=os.path.join(self.ddpm_result_folder, j, f'sample_{cur_step}.png'))
                         if self.writer is not None:
-                            self.writer.add_images('DDPM sampling result (clip)', imgs, cur_step)
-                    if self.clip is False or self.clip == 'both':
-                        imgs_no_clip = list(map(lambda n: self.ema.ema_model.sample(batch_size=n, clip=False), batches))
-                        imgs_no_clip = torch.cat(imgs_no_clip, dim=0)
-                        save_image(imgs_no_clip, nrow=self.nrow,
-                                   fp=os.path.join(self.ddpm_result_folder, 'no_clip', f'sample_{cur_step}.png'))
-                        if self.writer is not None:
-                            self.writer.add_images('DDPM sampling result (no clip)', imgs_no_clip, cur_step)
+                            self.writer.add_images('DDPM sampling result ({})'.format(j), imgs, cur_step)
                 self.save('latest')
 
             # DDPM Sampler for FID score evaluation
@@ -228,7 +224,7 @@ class Trainer:
                 if self.writer is not None:
                     self.writer.add_scalars('FID', {'DDPM': ddpm_cur_fid}, cur_step)
                 cur_fid = ddpm_cur_fid
-                self.fid_score_log['DDPM'].append(ddpm_cur_fid)
+                self.fid_score_log['DDPM'].append((self.global_step, ddpm_cur_fid))
 
             # DDIM Sampler
             for sampler in self.ddim_samplers:
@@ -238,40 +234,28 @@ class Trainer:
                         with torch.inference_mode():
                             batches = num_to_groups(self.num_samples, self.batch_size)
                             c_batch = np.insert(np.cumsum(np.array(batches)), 0, 0)
-                            if sampler.clip is True or sampler.clip == 'both':
+                            for i, j in zip([True, False], ['clip', 'no_clip']):
+                                if sampler.clip not in [i, 'both']:
+                                    continue
                                 if sampler.fixed_noise:
                                     imgs = list()
-                                    for i in range(len(batches)):
-                                        imgs.append(sampler.sample(batch_size=None,
-                                                                   noise=sampler.noise[c_batch[i]:c_batch[i+1]],
-                                                                   clip=True))
+                                    for b in range(len(batches)):
+                                        imgs.append(sampler.sample(self.ema.ema_model, batch_size=None, clip=i,
+                                                                   noise=sampler.noise[c_batch[b]:c_batch[b+1]]))
                                 else:
-                                    imgs = list(map(lambda n: sampler.sample(batch_size=n, clip=True), batches))
+                                    imgs = list(map(lambda n: sampler.sample(self.ema.ema_model,
+                                                                             batch_size=n, clip=i), batches))
                                 imgs = torch.cat(imgs, dim=0)
                                 save_image(imgs, nrow=self.nrow,
-                                           fp=os.path.join(sampler.save_path, 'clip', f'sample_{cur_step}.png'))
+                                           fp=os.path.join(sampler.save_path, j, f'sample_{cur_step}.png'))
                                 if self.writer is not None:
-                                    self.writer.add_images('{} sampling result (clip)'
-                                                           .format(sampler.sampler_name), imgs, cur_step)
-                            if sampler.clip is False or sampler.clip == 'both':
-                                if sampler.fixed_noise:
-                                    imgs_no_clip = list()
-                                    for i in range(len(batches)):
-                                        imgs_no_clip.append(sampler.sample(batch_size=None,
-                                                                           noise=sampler.noise[c_batch[i]:c_batch[i+1]],
-                                                                           clip=False))
-                                else:
-                                    imgs_no_clip = list(map(lambda n: sampler.sample(n, clip=False), batches))
-                                imgs_no_clip = torch.cat(imgs_no_clip, dim=0)
-                                save_image(imgs_no_clip, nrow=self.nrow,
-                                           fp=os.path.join(sampler.save_path, 'no_clip', f'sample_{cur_step}.png'))
-                                if self.writer is not None:
-                                    self.writer.add_images('{} sampling result (no clip)'
-                                                           .format(sampler.sampler_name), imgs_no_clip, cur_step)
+                                    self.writer.add_images('{} sampling result ({})'
+                                                           .format(sampler.sampler_name, j), imgs, cur_step)
 
                     # DDPM Sampler for FID score evaluation
                     if sampler.calculate_fid:
-                        ddim_cur_fid = self.fid_scorer.fid_score(sampler.sample, sampler.num_fid_sample)
+                        sample_ = partial(sampler.sample, self.ema.ema_model)
+                        ddim_cur_fid = self.fid_scorer.fid_score(sample_, sampler.num_fid_sample)
                         if sampler.best_fid[0] > ddim_cur_fid:
                             sampler.best_fid[0] = ddim_cur_fid
                             if sampler.save:
@@ -280,7 +264,7 @@ class Trainer:
                             cur_fid = ddim_cur_fid
                         if self.writer is not None:
                             self.writer.add_scalars('FID', {sampler.sampler_name: ddim_cur_fid}, cur_step)
-                        self.fid_score_log[sampler.sampler_name].append(ddim_cur_fid)
+                        self.fid_score_log[sampler.sampler_name].append((self.global_step, ddim_cur_fid))
 
             self.global_step += 1
 

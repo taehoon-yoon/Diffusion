@@ -11,6 +11,7 @@ from tqdm import tqdm
 from glob import glob
 import imageio
 from imageio import mimsave
+from functools import partial
 
 
 class Inferencer:
@@ -165,7 +166,8 @@ class Inferencer:
             for sampler in self.ddim_samplers:
                 print(colored('{} FID calculation...'.format(sampler.sampler_name), 'yellow'))
                 if sampler.calculate_fid:
-                    ddim_fid = self.fid_scorer.fid_score(sampler.sample, sampler.num_fid_sample)
+                    sample_ = partial(sampler.sample, self.diffusion_model)
+                    ddim_fid = self.fid_scorer.fid_score(sample_, sampler.num_fid_sample)
                     self.fid_score_log[f'{sampler.sampler_name}'] = ddim_fid
             print(colored('-'*50, 'yellow'))
             for key, val in self.fid_score_log.items():
