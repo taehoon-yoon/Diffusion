@@ -10,7 +10,6 @@ from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import save_image
 from multiprocessing import cpu_count
-from ema_pytorch import EMA
 from functools import partial
 from tqdm import tqdm
 import datetime
@@ -35,7 +34,7 @@ class Trainer:
     def __init__(self, diffusion_model, dataset, batch_size=32, lr=2e-5, total_step=100000, ddim_samplers=None,
                  save_and_sample_every=1000, num_samples=25, result_folder='./results', cpu_percentage=0,
                  fid_estimate_batch_size=None, ddpm_fid_score_estimate_every=None, ddpm_num_fid_samples=None,
-                 ema_decay=0.9999, ema_update_every=10, max_grad_norm=1., tensorboard=True, exp_name=None, clip=True):
+                  max_grad_norm=1., tensorboard=True, exp_name=None, clip=True):
         """
         Trainer for Diffusion model.
         :param diffusion_model: GaussianDiffusion model
@@ -61,8 +60,6 @@ class Trainer:
         :param ddpm_num_fid_samples: # of generating images for FID calculation using DDPM sampler. If you set
         ddpm_fid_score_estimate_every to None, i.e. not using DDPM sampler for FID calculation, then this value will
         be just ignored.
-        :param ema_decay: ema decay factor. DDPM author used 0.9999
-        :param ema_update_every:
         :param max_grad_norm: Restrict the norm of maximum gradient to this value
         :param tensorboard: Set to ture if you want to monitor training
         :param exp_name: experiment name. If set to None, it will be decided automatically as folder name of dataset.
@@ -120,7 +117,6 @@ class Trainer:
                                 num_workers=num_workers, pin_memory=True)
         self.dataLoader = cycle(dataLoader) if os.path.isdir(dataset) else cycle_with_label(dataLoader)
         self.optimizer = Adam(self.diffusion_model.parameters(), lr=lr)
-        self.ema = EMA(self.diffusion_model, beta=ema_decay, update_every=ema_update_every).to(self.device)
 
         # DDIM sampler setting
         self.ddim_sampling_schedule = list()
@@ -217,19 +213,18 @@ class Trainer:
         ddpm_best_fid = 1e10
         stepTQDM = tqdm(range(self.global_step, self.total_step))
         for cur_step in stepTQDM:
-            self.ema.ema_model.train()
+            self.diffusion_model.train()
             self.optimizer.zero_grad()
             image = next(self.dataLoader).to(self.device)
             loss = self.diffusion_model(image)
             loss.backward()
             nn.utils.clip_grad_norm_(self.diffusion_model.parameters(), self.max_grad_norm)
             self.optimizer.step()
-            self.ema.update()
 
             vis_fid = cur_fid if isinstance(cur_fid, str) else '{:.04f}'.format(cur_fid)
             stepTQDM.set_postfix({'loss': '{:.04f}'.format(loss.item()), 'FID': vis_fid})
 
-            self.ema.ema_model.eval()
+            self.diffusion_model.eval()
             # DDPM Sampler for generating images
             if cur_step != 0 and (cur_step % self.save_and_sample_every) == 0:
                 if self.writer is not None:
@@ -239,7 +234,7 @@ class Trainer:
                     for i, j in zip([True, False], ['clip', 'no_clip']):
                         if self.clip not in [i, 'both']:
                             continue
-                        imgs = list(map(lambda n: self.ema.ema_model.sample(batch_size=n, clip=i), batches))
+                        imgs = list(map(lambda n: self.diffusion_model.sample(batch_size=n, clip=i), batches))
                         imgs = torch.cat(imgs, dim=0)
                         save_image(imgs, nrow=self.nrow,
                                    fp=os.path.join(self.ddpm_result_folder, j, f'sample_{cur_step}.png'))
@@ -272,10 +267,10 @@ class Trainer:
                                 if sampler.fixed_noise:
                                     imgs = list()
                                     for b in range(len(batches)):
-                                        imgs.append(sampler.sample(self.ema.ema_model, batch_size=None, clip=i,
+                                        imgs.append(sampler.sample(self.diffusion_model, batch_size=None, clip=i,
                                                                    noise=sampler.noise[c_batch[b]:c_batch[b+1]]))
                                 else:
-                                    imgs = list(map(lambda n: sampler.sample(self.ema.ema_model,
+                                    imgs = list(map(lambda n: sampler.sample(self.diffusion_model,
                                                                              batch_size=n, clip=i), batches))
                                 imgs = torch.cat(imgs, dim=0)
                                 save_image(imgs, nrow=self.nrow,
@@ -286,7 +281,7 @@ class Trainer:
 
                     # DDPM Sampler for FID score evaluation
                     if sampler.calculate_fid:
-                        sample_ = partial(sampler.sample, self.ema.ema_model)
+                        sample_ = partial(sampler.sample, self.diffusion_model)
                         ddim_cur_fid = self.fid_scorer.fid_score(sample_, sampler.num_fid_sample)
                         if sampler.best_fid[0] > ddim_cur_fid:
                             sampler.best_fid[0] = ddim_cur_fid
@@ -309,7 +304,6 @@ class Trainer:
             'global_step': self.global_step,
             'model': self.diffusion_model.state_dict(),
             'opt': self.optimizer.state_dict(),
-            'ema': self.ema.state_dict(),
             'fid_logger': self.fid_score_log,
             'tensorboard': self.tensorboard_name
         }
@@ -331,7 +325,6 @@ class Trainer:
         self.diffusion_model.load_state_dict(data['model'])
         self.global_step = data['global_step']
         self.optimizer.load_state_dict(data['opt'])
-        self.ema.load_state_dict(data['ema'])
         fid_score_log = data['fid_logger']
         if no_prev_ddim_setting:
             for key, val in self.fid_score_log.items():
