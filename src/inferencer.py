@@ -1,6 +1,5 @@
 import os
 import math
-
 import torch
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
@@ -18,6 +17,28 @@ class Inferencer:
     def __init__(self, diffusion_model, dataset, ddim_samplers=None, batch_size=32, num_samples_per_image=25,
                  result_folder='./inference_results', num_images_to_generate=1, ddpm_fid_estimate=True, time_step=1000,
                  ddpm_num_fid_samples=None, clip=True, return_all_step=True, make_denoising_gif=True, num_gif=50):
+        """
+        Inferenceer for Diffusion model. Sampling is supported by DDPM sampling & DDIM sampling
+        :param diffusion_model: GaussianDiffusion model
+        :param dataset: either 'cifar10' or path to the custom dataset you've prepared, where images are saved
+        :param ddim_samplers: List containing DDIM samplers.
+        :param batch_size: batch_size for inferencing
+        :param num_samples_per_image: # of generating images, must be square number ex) 25, 36, 49...
+        :param result_folder: where inference result will be saved.
+        :param num_images_to_generate: # of generated image set. For example if num_samples_per_image==25 and
+        num_images_to_generate==3 then, in result folder there will be 3 generated image with each image containing
+        25 generated sub-images merged into one image file with 5 rows, 5 columns.
+        :param ddpm_fid_estimate: Whether to  calculate FID score based on DDPM sampling.
+        :param time_step: Gaussian diffusion length T. In DDPM paper they used T=1000
+        :param ddpm_num_fid_samples: # of generating images for FID calculation using DDPM sampler. If you set
+        ddpm_fid_estimate to False, i.e. not using DDPM sampler for FID calculation, then this value will
+        be just ignored.
+        :param clip: [True, False, 'both'] you can find detail in p_sample function
+        and ddim_p_sample function in diffusion.py file.
+        :param return_all_step: Whether to save the entire de-noising processed image to result folder.
+        :param make_denoising_gif: Whether to make gif which contains de-noising process visually.
+        :param num_gif: # of images to make one gif which contains de-noising process visually.
+        """
         dataset_name = os.path.basename(dataset)
         if dataset_name == '':
             dataset_name=os.path.basename(os.path.dirname(dataset))
@@ -127,7 +148,7 @@ class Inferencer:
                         gif = [imageio.v2.imread(names) for names in file_names]
                         mimsave(os.path.join(self.ddpm_result_folder, '{}_{}.gif'.format(idx+1, j)),
                                 gif, **{'duration': self.num_gif / imgs.shape[1]})
-                last_img = imgs[:,-1] if self.return_all_step else imgs
+                last_img = imgs[:, -1] if self.return_all_step else imgs
                 save_image(last_img, nrow=self.nrow,
                            fp=os.path.join(self.ddpm_result_folder, '{}_{}.png'.format(idx+1, j)))
         # DDIM sampler

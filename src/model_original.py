@@ -111,6 +111,25 @@ class upSample(nn.Module):
 class Unet(nn.Module):
     def __init__(self, dim, image_size, dim_multiply=(1, 2, 4, 8), channel=3, num_res_blocks=2,
                  attn_resolutions=(16,), dropout=0, device='cuda', groups=32):
+        """
+        U-net for noise prediction. Code is based on Denoising Diffusion Probabilistic Models
+        https://github.com/hojonathanho/diffusion
+        :param dim: See below
+        :param dim_multiply: len(dim_multiply) will be the depth of U-net model with at each level i, the dimension
+        of channel will be dim * dim_multiply[i]. If the input image shape is [H, W, 3] then at the lowest level,
+        feature map shape will be [H/(2^(len(dim_multiply)-1), W/(2^(len(dim_multiply)-1), dim*dim_multiply[-1]]
+        if not considering U-net down-up path connection.
+        :param image_size: input image size
+        :param channel: 3
+        :param num_res_blocks: # of ResnetBlock at each level. In downward path, at each level, there will be
+        num_res_blocks amount of ResnetBlock module and in upward path, at each level, there will be
+        (num_res_blocks+1) amount of ResnetBlock module
+        :param attn_resolutions: The feature map resolution where we will apply Attention. In DDPM paper, author
+        used Attention module when resolution of feature map is 16.
+        :param dropout: dropout. If set to 0 then no dropout.
+        :param device: either 'cuda' or 'cpu'
+        :param groups: number of groups for Group normalization.
+        """
         super().__init__()
         assert dim % groups == 0, 'parameter [groups] must be divisible by parameter [dim]'
 
@@ -180,6 +199,9 @@ class Unet(nn.Module):
         self.final_conv = nn.Conv2d(final_ch, channel, kernel_size=(3, 3), padding=1)
 
     def forward(self, x, time):
+        """
+        return predicted noise given x_t and t
+        """
         t = self.time_mlp(time)
         # Downward
         concat = list()

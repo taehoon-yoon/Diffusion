@@ -36,6 +36,38 @@ class Trainer:
                  save_and_sample_every=1000, num_samples=25, result_folder='./results', cpu_percentage=0,
                  fid_estimate_batch_size=None, ddpm_fid_score_estimate_every=None, ddpm_num_fid_samples=None,
                  ema_decay=0.9999, ema_update_every=10, max_grad_norm=1., tensorboard=True, exp_name=None, clip=True):
+        """
+        Trainer for Diffusion model.
+        :param diffusion_model: GaussianDiffusion model
+        :param dataset: either 'cifar10' or path to the custom dataset you've prepared, where images are saved
+        :param batch_size: batch size for training. DDPM author used 128 for cifar10 and 64 for 256X256 image
+        :param lr: DDPM author used 2e-4 for cifar10 and 2e-5 for 256X256 image
+        :param total_step: total training step. DDPM used 800K for cifar10, CelebA-HQ for 0.5M
+        :param ddim_samplers: List containing DDIM samplers.
+        :param save_and_sample_every: Step interval for saving model and generated image(by DDPM sampling).
+        For example if it is set to 1000, then trainer will save models in every 1000 step and save generated images
+        based on DDPM sampling schema. If you want to generate image based on DDIM sampling, you have to pass a list
+        containing corresponding DDIM sampler.
+        :param num_samples: # of generating images, must be square number ex) 25, 36, 49...
+        :param result_folder: where model, generated images will be saved
+        :param cpu_percentage: The percentage of CPU used for Dataloader i.e. num_workers in Dataloader.
+        Value must be [0, 1] where 1 means using all cpu for dataloader. If you are Windows user setting value other
+        than 0 will cause problem, so set to 0
+        :param fid_estimate_batch_size: batch size for FID calculation. It has nothing to do with training.
+        :param ddpm_fid_score_estimate_every: Step interval for FID calculation using DDPM. If set to None, FID score
+        will not be calculated with DDPM sampling. If you use DDPM sampling for FID calculation, it can be very
+        time consuming, so it is wise to set this value to None, and use DDIM sampler for FID calculation. But anyway
+        you can calculate FID score with DDPM sampler if you insist to.
+        :param ddpm_num_fid_samples: # of generating images for FID calculation using DDPM sampler. If you set
+        ddpm_fid_score_estimate_every to None, i.e. not using DDPM sampler for FID calculation, then this value will
+        be just ignored.
+        :param ema_decay: ema decay factor. DDPM author used 0.9999
+        :param ema_update_every:
+        :param max_grad_norm: Restrict the norm of maximum gradient to this value
+        :param tensorboard: Set to ture if you want to monitor training
+        :param exp_name: experiment name. If set to None, it will be decided automatically as folder name of dataset.
+        :param clip: [True, False, 'both'] you can find detail in p_sample function in diffusion.py file.
+        """
 
         # Metadata & Initialization & Make directory for saving files.
         now = datetime.datetime.now()

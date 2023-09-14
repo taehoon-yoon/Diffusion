@@ -155,6 +155,26 @@ def upSample(dim_in, dim_out):
 class Unet(nn.Module):
     def __init__(self, dim, dim_multiply=(1, 2, 4, 8), channel=3, attn_heads=4, attn_head_dim=32,
                  full_attn=(False, False, False, True), resnet_group_norm=8, device='cuda'):
+        """
+        U-net for noise prediction. Code is based on denoising-diffusion-pytorch
+        https://github.com/lucidrains/denoising-diffusion-pytorch
+        :param dim: See below
+        :param dim_multiply: len(dim_multiply) will be the depth of U-net model with at each level i, the dimension
+        of channel will be dim * dim_multiply[i]. If the input image shape is [H, W, 3] then at the lowest level,
+        feature map shape will be [H/(2^(len(dim_multiply)-1), W/(2^(len(dim_multiply)-1), dim*dim_multiply[-1]]
+        if not considering U-net down-up path connection.
+        :param channel: 3
+        :param attn_heads: It uses multi-head-self-Attention. attn_head is the # of head. It corresponds to h in
+        "Attention is all you need" paper. See section 3.2.2
+        :param attn_head_dim: It is the dimension of each head. It corresponds to d_k in Attention paper.
+        :param full_attn: In pytorch implementation they used Linear Attention where full Attention(multi head self
+        attention) is not applied. This param indicates at each level, whether to use full attention
+        or use linear attention. So the len(full_attn) must equal to len(dim_multiply). For example if
+        full_attn=(F, F, F, T) then at level 0, 1, 2 it will use Linear Attention and at level 3 it will use
+        multi-head self attention(i.e. full attention)
+        :param resnet_group_norm: number of groups for Group normalization.
+        :param device: either 'cuda' or 'cpu'
+        """
         super().__init__()
         assert len(dim_multiply) == len(full_attn), 'Length of dim_multiply and Length of full_attn must be same'
 
@@ -214,6 +234,9 @@ class Unet(nn.Module):
         self.final_conv = nn.Conv2d(self.dim, self.channel, kernel_size=(1, 1))
 
     def forward(self, x, time):
+        """
+        return predicted noise given x_t and t
+        """
         x = self.init_conv(x)
         r = x.clone()
         t = self.time_mlp(time)
