@@ -3,6 +3,7 @@
 
 This code is the implementation code of the papers DDPM ([Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239)) 
 and DDIM ([Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)).
+
 ---
 ## Objective
 
@@ -12,6 +13,7 @@ repository, which is a Pytorch implementation of the official Tensorflow code
 differences in the implementation especially in **U-net** structure. And further we find that Pytorch implementation 
 version lacks some functionality for monitoring training and does not have inference code. So we decided to
 re-implement the code such that it can be helpful for someone who is first to **Diffusion** models.
+
 ---
 ## Training
 
