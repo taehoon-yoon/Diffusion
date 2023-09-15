@@ -34,7 +34,7 @@ class Trainer:
     def __init__(self, diffusion_model, dataset, batch_size=32, lr=2e-5, total_step=100000, ddim_samplers=None,
                  save_and_sample_every=1000, num_samples=25, result_folder='./results', cpu_percentage=0,
                  fid_estimate_batch_size=None, ddpm_fid_score_estimate_every=None, ddpm_num_fid_samples=None,
-                  max_grad_norm=1., tensorboard=True, exp_name=None, clip=True):
+                 max_grad_norm=1., tensorboard=True, exp_name=None, clip=True):
         """
         Trainer for Diffusion model.
         :param diffusion_model: GaussianDiffusion model
