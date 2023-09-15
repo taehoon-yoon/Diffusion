@@ -97,8 +97,8 @@ if __name__ == '__main__':
     }
     # with open('./config/cifar10_example.yaml', 'w') as f:
     #     yaml.dump(data, f, sort_keys=False)
-    with open('./config/cifar10_example.yaml', 'r') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-    print(config)
+    #with open('./config/cifar10_example.yaml', 'r') as f:
+    #    config = yaml.load(f, Loader=yaml.FullLoader)
+    #print(config)
 
-    # main(args)
+    main(args)

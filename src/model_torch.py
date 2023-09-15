@@ -153,7 +153,7 @@ def upSample(dim_in, dim_out):
 
 
 class Unet(nn.Module):
-    def __init__(self, dim, dim_multiply=(1, 2, 4, 8), channel=3, attn_heads=4, attn_head_dim=32,
+    def __init__(self, dim, image_size, dim_multiply=(1, 2, 4, 8), channel=3, attn_heads=4, attn_head_dim=32,
                  full_attn=(False, False, False, True), resnet_group_norm=8, device='cuda'):
         """
         U-net for noise prediction. Code is based on denoising-diffusion-pytorch
