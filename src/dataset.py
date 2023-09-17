@@ -25,13 +25,13 @@ class customDataset(Dataset):
         return self.transform(img)
 
 
-def dataset_wrapper(dataset, image_size, augment_horizontal_flip=True, info_color='light_green'):
+def dataset_wrapper(dataset, image_size, augment_horizontal_flip=True, info_color='light_green', min1to1=True):
     transform = transforms.Compose([
         transforms.Resize(image_size),
         transforms.RandomHorizontalFlip() if augment_horizontal_flip else torch.nn.Identity(),
         transforms.CenterCrop(image_size),
         transforms.ToTensor(),  # turn into torch Tensor of shape CHW, 0 ~ 1
-        transforms.Lambda(lambda x: ((x * 2) - 1))  # -1 ~ 1
+        transforms.Lambda(lambda x: ((x * 2) - 1)) if min1to1 else torch.nn.Identity()# -1 ~ 1
     ])
     if os.path.isdir(dataset):
         print(colored('Loading local file directory', info_color))
