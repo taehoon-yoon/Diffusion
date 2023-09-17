@@ -222,7 +222,7 @@ class Trainer:
             self.optimizer.step()
 
             vis_fid = cur_fid if isinstance(cur_fid, str) else '{:.04f}'.format(cur_fid)
-            stepTQDM.set_postfix({'loss': '{:.04f}'.format(loss.item()), 'FID': vis_fid})
+            stepTQDM.set_postfix({'loss': '{:.04f}'.format(loss.item()), 'FID': vis_fid, 'step':self.global_step})
 
             self.diffusion_model.eval()
             # DDPM Sampler for generating images
