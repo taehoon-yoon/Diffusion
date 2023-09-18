@@ -75,7 +75,7 @@ class FID:
 
             stacked_real_features = torch.cat(stacked_real_features, dim=0).cpu().numpy()
             m2 = np.mean(stacked_real_features, axis=0)
-            s2 = np.cov(stacked_real_features, rowvar=False)
+            s2 = np.cov(stacked_real_features, rowvar=False, ddof=0)
             np.savez_compressed(path, m2=m2, s2=s2)
             print(colored('Dataset stats cached to {} for future use\n'.format(path), 'light_magenta'))
         return m2, s2
@@ -85,12 +85,12 @@ class FID:
         batches = num_to_groups(num_samples, self.batch_size)
         stacked_fake_features = list()
         for batch in tqdm(batches, desc='FID score calculation', leave=False):
-            fake_samples = sampler(batch, clip=True)
+            fake_samples = sampler(batch, clip=True, min1to1=True)
             fake_features = self.calculate_inception_features(fake_samples)
             stacked_fake_features.append(fake_features)
         stacked_fake_features = torch.cat(stacked_fake_features, dim=0).cpu().numpy()
         m1 = np.mean(stacked_fake_features, axis=0)
-        s1 = np.cov(stacked_fake_features, rowvar=False)
+        s1 = np.cov(stacked_fake_features, rowvar=False, ddof=0)
         return calculate_frechet_distance(m1, s1, self.m2, self.s2)
 
 

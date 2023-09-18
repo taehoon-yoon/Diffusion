@@ -70,7 +70,7 @@ class Inferencer:
         # Dataset
         notification = make_notification('Dataset', color='light_green')
         print(notification)
-        dataSet = dataset_wrapper(dataset, self.image_size, augment_horizontal_flip=False, min1to1=False)
+        dataSet = dataset_wrapper(dataset, self.image_size, augment_horizontal_flip=False, min1to1=True)
         dataLoader = DataLoader(dataSet, batch_size=batch_size)
         print(colored('Dataset Length: {}\n'.format(len(dataSet)), 'light_green'))
 

@@ -119,7 +119,7 @@ class GaussianDiffusion(nn.Module):
         return x_t_minus_1
 
     @torch.inference_mode()
-    def sample(self, batch_size=16, return_all_timestep=False, clip=True):
+    def sample(self, batch_size=16, return_all_timestep=False, clip=True, min1to1=False):
         """
 
         :param batch_size: # of image to generate.
@@ -137,7 +137,10 @@ class GaussianDiffusion(nn.Module):
             xt = x_t_minus_1
 
         images = xt if not return_all_timestep else torch.stack(denoised_intermediates, dim=1)
-        images = (images + 1.0) * 0.5  # scale to 0~1
+        # images = (images + 1.0) * 0.5  # scale to 0~1
+        images.clamp_(min=-1.0, max=1.0)
+        if not min1to1:
+            images.sub_(-1.0).div_(2.0)
         return images
 
     ####################################################################################################################
@@ -251,7 +254,7 @@ class DDIM_Sampler(nn.Module):
         return x_t_minus_1
 
     @torch.inference_mode()
-    def sample(self, diffusion_model, batch_size, noise=None, return_all_timestep=False, clip=True):
+    def sample(self, diffusion_model, batch_size, noise=None, return_all_timestep=False, clip=True, min1to1=False):
         """
 
         :param diffusion_model: Diffusion model
@@ -273,5 +276,8 @@ class DDIM_Sampler(nn.Module):
             xt = x_t_minus_1
 
         images = xt if not return_all_timestep else torch.stack(denoised_intermediates, dim=1)
-        images = (images + 1.0) * 0.5  # scale to 0~1
+        # images = (images + 1.0) * 0.5  # scale to 0~1
+        images.clamp_(min=-1.0, max=1.0)
+        if not min1to1:
+            images.sub_(-1.0).div_(2.0)
         return images
