@@ -11,6 +11,7 @@ from glob import glob
 import imageio
 from imageio import mimsave
 from functools import partial
+from torchvision.transforms import ToPILImage
 
 
 class Inferencer:
@@ -181,9 +182,16 @@ class Inferencer:
         if self.cal_fid:
             print(colored('\nFID score estimation\n', 'light_yellow'))
             if self.ddpm_fid_flag:
+                path = os.path.join(self.ddpm_result_folder, 'ddpm_fid')
+                os.makedirs(path, exist_ok=True)
                 print(colored('DDPM FID calculation...', 'yellow'))
-                ddpm_fid = self.fid_scorer.fid_score(self.diffusion_model.sample, self.ddpm_num_fid_samples)
+                ddpm_fid, imgs = self.fid_scorer.fid_score(self.diffusion_model.sample, self.ddpm_num_fid_samples, True)
                 self.fid_score_log['DDPM'] = ddpm_fid
+                print('DDPM FID: ', ddpm_fid)
+                toPIL = ToPILImage()
+                for i in range(imgs.shape[0]):
+                    img = toPIL(imgs[i])
+                    img.save(os.path.join(path, '{:06d}.png'.format(i+1)))
             for sampler in self.ddim_samplers:
                 print(colored('{} FID calculation...'.format(sampler.sampler_name), 'yellow'))
                 if sampler.calculate_fid:

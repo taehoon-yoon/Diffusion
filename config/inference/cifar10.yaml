@@ -27,8 +27,8 @@ inferencer:
   clip: true
   num_samples_per_image: 64
   num_images_to_generate: 0
-  ddpm_fid_estimate: false
-  ddpm_num_fid_samples: 30000
+  ddpm_fid_estimate: true
+  ddpm_num_fid_samples: 60000
   return_all_step: true
   make_denoising_gif: true
   num_gif: 50

@@ -81,17 +81,26 @@ class FID:
         return m2, s2
 
     @torch.inference_mode()
-    def fid_score(self, sampler, num_samples):
+    def fid_score(self, sampler, num_samples, return_sample_image=False):
         batches = num_to_groups(num_samples, self.batch_size)
         stacked_fake_features = list()
+        generated_samples = list() if return_sample_image else None
         for batch in tqdm(batches, desc='FID score calculation', leave=False):
             fake_samples = sampler(batch, clip=True, min1to1=True)
+            if return_sample_image:
+                generated_samples.append(fake_samples)
             fake_features = self.calculate_inception_features(fake_samples)
             stacked_fake_features.append(fake_features)
         stacked_fake_features = torch.cat(stacked_fake_features, dim=0).cpu().numpy()
         m1 = np.mean(stacked_fake_features, axis=0)
         s1 = np.cov(stacked_fake_features, rowvar=False, ddof=0)
-        return calculate_frechet_distance(m1, s1, self.m2, self.s2)
+        print('fid: ', calculate_frechet_distance(m1, s1, self.m2, self.s2))
+        if not return_sample_image:
+            return calculate_frechet_distance(m1, s1, self.m2, self.s2)
+        else:
+            generated_samples = torch.cat(generated_samples, dim=0)
+            generated_samples = (generated_samples+1.0)*0.5
+            return calculate_frechet_distance(m1, s1, self.m2, self.s2), generated_samples
 
 
 def make_notification(content, color, boundary='-'):
