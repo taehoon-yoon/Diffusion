@@ -94,7 +94,6 @@ class FID:
         stacked_fake_features = torch.cat(stacked_fake_features, dim=0).cpu().numpy()
         m1 = np.mean(stacked_fake_features, axis=0)
         s1 = np.cov(stacked_fake_features, rowvar=False, ddof=0)
-        print('fid: ', calculate_frechet_distance(m1, s1, self.m2, self.s2))
         if not return_sample_image:
             return calculate_frechet_distance(m1, s1, self.m2, self.s2)
         else:

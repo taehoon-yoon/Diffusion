@@ -163,7 +163,7 @@ class Trainer:
         else:
             self.fid_batch_size = fid_estimate_batch_size if fid_estimate_batch_size is not None else self.batch_size
             dataSet_fid = dataset_wrapper(dataset, self.image_size,
-                                          augment_horizontal_flip=False, info_color='light_magenta', min1to1=False)
+                                          augment_horizontal_flip=False, info_color='light_magenta', min1to1=True)
             dataLoader_fid = DataLoader(dataSet_fid, batch_size=self.fid_batch_size, num_workers=num_workers)
 
             self.fid_scorer = FID(self.fid_batch_size, dataLoader_fid, dataset_name=exp_name, device=self.device,
