@@ -75,7 +75,7 @@ class FID:
 
             stacked_real_features = torch.cat(stacked_real_features, dim=0).cpu().numpy()
             m2 = np.mean(stacked_real_features, axis=0)
-            s2 = np.cov(stacked_real_features, rowvar=False, ddof=0)
+            s2 = np.cov(stacked_real_features, rowvar=False)
             np.savez_compressed(path, m2=m2, s2=s2)
             print(colored('Dataset stats cached to {} for future use\n'.format(path), 'light_magenta'))
         return m2, s2
@@ -86,20 +86,19 @@ class FID:
         stacked_fake_features = list()
         generated_samples = list() if return_sample_image else None
         for batch in tqdm(batches, desc='FID score calculation', leave=False):
-            fake_samples = sampler(batch, clip=True, min1to1=True)
+            fake_samples = sampler(batch, clip=True, min1to1=False)
             if return_sample_image:
                 generated_samples.append(fake_samples)
             fake_features = self.calculate_inception_features(fake_samples)
             stacked_fake_features.append(fake_features)
         stacked_fake_features = torch.cat(stacked_fake_features, dim=0).cpu().numpy()
         m1 = np.mean(stacked_fake_features, axis=0)
-        s1 = np.cov(stacked_fake_features, rowvar=False, ddof=0)
-        if not return_sample_image:
-            return calculate_frechet_distance(m1, s1, self.m2, self.s2)
-        else:
-            generated_samples = torch.cat(generated_samples, dim=0)
-            generated_samples = (generated_samples+1.0)*0.5
-            return calculate_frechet_distance(m1, s1, self.m2, self.s2), generated_samples
+        s1 = np.cov(stacked_fake_features, rowvar=False)
+        generated_samples_return = None
+        if return_sample_image:
+            generated_samples_return = torch.cat(generated_samples, dim=0)
+            generated_samples_return = (generated_samples_return + 1.0) * 0.5
+        return calculate_frechet_distance(m1, s1, self.m2, self.s2), generated_samples_return
 
 
 def make_notification(content, color, boundary='-'):

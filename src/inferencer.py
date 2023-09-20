@@ -17,7 +17,8 @@ from torchvision.transforms import ToPILImage
 class Inferencer:
     def __init__(self, diffusion_model, dataset, ddim_samplers=None, batch_size=32, num_samples_per_image=25,
                  result_folder='./inference_results', num_images_to_generate=1, ddpm_fid_estimate=True, time_step=1000,
-                 ddpm_num_fid_samples=None, clip=True, return_all_step=True, make_denoising_gif=True, num_gif=50):
+                 ddpm_num_fid_samples=None, clip=True, return_all_step=True, make_denoising_gif=True, num_gif=50,
+                 save_generated_img_for_fid_cal=False):
         """
         Inferenceer for Diffusion model. Sampling is supported by DDPM sampling & DDIM sampling
         :param diffusion_model: GaussianDiffusion model
@@ -39,6 +40,7 @@ class Inferencer:
         :param return_all_step: Whether to save the entire de-noising processed image to result folder.
         :param make_denoising_gif: Whether to make gif which contains de-noising process visually.
         :param num_gif: # of images to make one gif which contains de-noising process visually.
+        :param save_generated_img_for_fid_cal: Whether to save generated images which are used for FID calculation.
         """
         dataset_name = os.path.basename(dataset)
         if dataset_name == '':
@@ -58,6 +60,8 @@ class Inferencer:
         self.return_all_step = return_all_step or make_denoising_gif
         self.make_denoising_gif = make_denoising_gif
         self.num_gif = num_gif
+        self.save_img = save_generated_img_for_fid_cal
+        self.toPIL = ToPILImage()
         self.clip = clip
         self.ddpm_fid_flag = ddpm_fid_estimate
         self.cal_fid = True if self.ddpm_fid_flag else False
@@ -71,7 +75,7 @@ class Inferencer:
         # Dataset
         notification = make_notification('Dataset', color='light_green')
         print(notification)
-        dataSet = dataset_wrapper(dataset, self.image_size, augment_horizontal_flip=False, min1to1=True)
+        dataSet = dataset_wrapper(dataset, self.image_size, augment_horizontal_flip=False, min1to1=False)
         dataLoader = DataLoader(dataSet, batch_size=batch_size)
         print(colored('Dataset Length: {}\n'.format(len(dataSet)), 'light_green'))
 
@@ -182,22 +186,28 @@ class Inferencer:
         if self.cal_fid:
             print(colored('\nFID score estimation\n', 'light_yellow'))
             if self.ddpm_fid_flag:
-                path = os.path.join(self.ddpm_result_folder, 'ddpm_fid')
-                os.makedirs(path, exist_ok=True)
                 print(colored('DDPM FID calculation...', 'yellow'))
-                ddpm_fid = self.fid_scorer.fid_score(self.diffusion_model.sample, self.ddpm_num_fid_samples, False)
+                ddpm_fid, imgs = self.fid_scorer.fid_score(self.diffusion_model.sample, self.ddpm_num_fid_samples,
+                                                           self.save_img)
                 self.fid_score_log['DDPM'] = ddpm_fid
-                print('DDPM FID: ', ddpm_fid)
-                # toPIL = ToPILImage()
-                # for i in range(imgs.shape[0]):
-                #     img = toPIL(imgs[i])
-                #     img.save(os.path.join(path, '{:06d}.png'.format(i+1)))
+                if self.save_img:
+                    path_ = os.path.join(self.ddpm_result_folder, 'generated_samples_for_FID_calculation')
+                    os.makedirs(path_, exist_ok=True)
+                    for i in range(imgs.shape[0]):
+                        img = self.toPIL(imgs[i])
+                        img.save(os.path.join(path_, '{:06d}.png'.format(i+1)))
             for sampler in self.ddim_samplers:
                 print(colored('{} FID calculation...'.format(sampler.sampler_name), 'yellow'))
                 if sampler.calculate_fid:
                     sample_ = partial(sampler.sample, self.diffusion_model)
-                    ddim_fid = self.fid_scorer.fid_score(sample_, sampler.num_fid_sample)
+                    ddim_fid, imgs = self.fid_scorer.fid_score(sample_, sampler.num_fid_sample, self.save_img)
                     self.fid_score_log[f'{sampler.sampler_name}'] = ddim_fid
+                    if self.save_img:
+                        path_ = os.path.join(sampler.save_path, 'generated_samples_for_FID_calculation')
+                        os.makedirs(path_, exist_ok=True)
+                        for i in range(imgs.shape[0]):
+                            img = self.toPIL(imgs[i])
+                            img.save(os.path.join(path_, '{:06d}.png'.format(i + 1)))
             print(colored('-'*50, 'yellow'))
             for key, val in self.fid_score_log.items():
                 print(colored('Sampler: {} -> FID score: {}'.format(key, val), 'yellow'))

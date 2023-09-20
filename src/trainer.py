@@ -163,7 +163,7 @@ class Trainer:
         else:
             self.fid_batch_size = fid_estimate_batch_size if fid_estimate_batch_size is not None else self.batch_size
             dataSet_fid = dataset_wrapper(dataset, self.image_size,
-                                          augment_horizontal_flip=False, info_color='light_magenta', min1to1=True)
+                                          augment_horizontal_flip=False, info_color='light_magenta', min1to1=False)
             dataLoader_fid = DataLoader(dataSet_fid, batch_size=self.fid_batch_size, num_workers=num_workers)
 
             self.fid_scorer = FID(self.fid_batch_size, dataLoader_fid, dataset_name=exp_name, device=self.device,
@@ -244,7 +244,7 @@ class Trainer:
 
             # DDPM Sampler for FID score evaluation
             if self.ddpm_fid_flag and cur_step != 0 and (cur_step % self.ddpm_fid_score_estimate_every) == 0:
-                ddpm_cur_fid = self.fid_scorer.fid_score(self.diffusion_model.sample, self.ddpm_num_fid_samples)
+                ddpm_cur_fid, _ = self.fid_scorer.fid_score(self.diffusion_model.sample, self.ddpm_num_fid_samples)
                 if ddpm_best_fid > ddpm_cur_fid:
                     ddpm_best_fid = ddpm_cur_fid
                     self.save('best_fid_ddpm')
@@ -282,7 +282,7 @@ class Trainer:
                     # DDPM Sampler for FID score evaluation
                     if sampler.calculate_fid:
                         sample_ = partial(sampler.sample, self.diffusion_model)
-                        ddim_cur_fid = self.fid_scorer.fid_score(sample_, sampler.num_fid_sample)
+                        ddim_cur_fid, _ = self.fid_scorer.fid_score(sample_, sampler.num_fid_sample)
                         if sampler.best_fid[0] > ddim_cur_fid:
                             sampler.best_fid[0] = ddim_cur_fid
                             if sampler.save:
