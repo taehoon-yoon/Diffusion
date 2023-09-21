@@ -20,9 +20,9 @@ re-implement the code such that it can be helpful for someone who is first to **
 To train the diffusion model, first thing you have to do is to configure your training settings by making configuration
 file. You can find some example inside the folder ```./config```. I will explain how to configure your training using
 ```./config/cifar10_example.yaml``` file.
+Inside the ```cifar10_example.yaml``` you may find 4 primary section, ```type, unet, ddim, trainer```. 
 
-In side the ```cifar10_example.yaml``` you may find 4 primary section, ```type, unet, ddim, trainer```. We will first 
-look at ```trainer``` section which is configured as follows.
+We will first look at ```trainer``` section which is configured as follows.
 
 ```yaml
 dataset: cifar10
@@ -78,3 +78,35 @@ during training, with the tensorboard.
 
 
 - ```clip```: It must be one of [both, true, false]. 
+
+---
+
+Now we will look at ```type, unet``` section which is configured as follows.
+
+```yaml
+type: original
+unet:
+  dim: 64
+  image_size: 32
+  dim_multiply:
+  - 1
+  - 2
+  - 2
+  - 2
+  attn_resolutions:
+  - 16
+  dropout: 0.1
+  num_res_blocks: 2
+```
+
+-```type```: It must be one of [original, torch]. ***original*** will use U-net structure which was originally suggested by
+Jonathan Ho. So it's structure will be the one used in [Denoising Diffusion Probabilistic Models](https://github.com/hojonathanho/diffusion)
+which is an official version written in Tensorflow. ***torch*** will use U-net structure which was suggested by 
+[denoising-diffusion-pytorch](https://github.com/lucidrains/denoising-diffusion-pytorch) which is a transcribed version of
+official Tensorflow version. 
+
+I have separated those two because there structure differs significantly. To name a few, following is the difference of
+those two U-net structure.
+1. official version use self Attention where the feature map resolution at each U-net level 
+   is in ```attn_resolutions```. In the DDPM paper you can find that they used self Attention at the 16X16 resolution, 
+   and this is why ```attn_resolutions``` is by default ```[16, ]```
