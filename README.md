@@ -19,7 +19,7 @@ re-implement the code such that it can be helpful for someone who is first to **
 
 To train the diffusion model, first thing you have to do is to configure your training settings by making configuration
 file. You can find some example inside the folder ```./config```. I will explain how to configure your training using
-```./config/cifar10_example.yaml``` file.
+```./config/cifar10_example.yaml``` file and ```./config/cifar10_torch_example.yaml``` file.
 Inside the ```cifar10_example.yaml``` you may find 4 primary section, ```type, unet, ddim, trainer```. 
 
 We will first look at ```trainer``` section which is configured as follows.
@@ -84,6 +84,7 @@ during training, with the tensorboard.
 Now we will look at ```type, unet``` section which is configured as follows.
 
 ```yaml
+# ```./config/cifar10_example.yaml```
 type: original
 unet:
   dim: 64
@@ -99,6 +100,26 @@ unet:
   num_res_blocks: 2
 ```
 
+```yaml
+# ```./config/cifar10_torch_example.yaml```
+type: torch
+unet:
+  dim: 64
+  image_size: 32
+  dim_multiply:
+  - 1
+  - 2
+  - 2
+  - 2
+  full_attn:
+  - false
+  - true
+  - false
+  - false
+  attn_heads: 4
+  attn_head_dim: 32
+```
+
 -```type```: It must be one of [original, torch]. ***original*** will use U-net structure which was originally suggested by
 Jonathan Ho. So it's structure will be the one used in [Denoising Diffusion Probabilistic Models](https://github.com/hojonathanho/diffusion)
 which is an official version written in Tensorflow. ***torch*** will use U-net structure which was suggested by 
@@ -110,3 +131,8 @@ those two U-net structure.
 1. official version use self Attention where the feature map resolution at each U-net level 
    is in ```attn_resolutions```. In the DDPM paper you can find that they used self Attention at the 16X16 resolution, 
    and this is why ```attn_resolutions``` is by default ```[16, ]```
+
+   On the other hand, Pytorch transcribed version use Linear Attention and multi-head self Attention. They use
+   multi-head self Attention at the U-net level where ```full_attn``` is true and Linear Attention at the 
+   rest of the U-net level. So in this particular case, they used multi-head self Attention at the U-net level 1 (I will 
+denote U-net level as 0, 1, 2, 3, ...) and the Linear Attention at the U-net level 0, 2, 3.
