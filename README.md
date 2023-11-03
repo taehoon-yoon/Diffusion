@@ -77,7 +77,18 @@ be just ignored.
 during training, with the tensorboard.
 
 
-- ```clip```: It must be one of [both, true, false]. 
+- ```clip```: It must be one of [both, true, false]. This is related to sampling of x_{t-1} from p_{theta}(x_{t-1} | x_t).
+There are two ways to sample x_{t-1}.
+One way is to follow paper and this corresponds to line 4 in Algorithm 2 in DDPM paper. (```clip==False```)
+Another way is to clip(or clamp) the predicted x_0 to -1 ~ 1 for better sampling result.
+To clip the x_0 to out desired range, we cannot directly apply (11) to sample x_{t-1}, rather we have to
+calculate predicted x_0 using (4) and then calculate mu in (7) using that predicted x_0. Which is exactly
+same calculation except for clipping.
+As you might easily expect, using clip leads to better sampling result since it
+restricts sampled images range to -1 ~ 1. So for the better sampling result, it is strongly suggested 
+setting ```clip``` to true. If ```clip==both``` then sampling is done twice, one done with
+```clip==True``` and the other done with ```clip==False```.
+[Reference](https://github.com/hojonathanho/diffusion/issues/5)
 
 ---
 
@@ -136,3 +147,55 @@ those two U-net structure.
    multi-head self Attention at the U-net level where ```full_attn``` is true and Linear Attention at the 
    rest of the U-net level. So in this particular case, they used multi-head self Attention at the U-net level 1 (I will 
 denote U-net level as 0, 1, 2, 3, ...) and the Linear Attention at the U-net level 0, 2, 3.
+
+-```unet.dim```: This is related to the hidden channel dimension of feature map at each U-net model. You can find more
+detail right below.
+
+-```unet.dim_multiply```: ```len(dim_multiply)``` will be the depth of U-net model with at each level i, the dimension
+        of channel will be ```dim * dim_multiply[i]```. If the input image shape is [H, W, 3] then at the lowest level,
+        feature map shape will be [H/(2^(len(dim_multiply)-1), W/(2^(len(dim_multiply)-1), dim*dim_multiply[-1]]
+        if not considering U-net down-up path connection.
+
+-```unet.image_size```: Size of the input image. Image will be resized and cropped if ```image_size``` does not
+equal to actual input image size. Expected to be ```Integer```, I have not tested for non-square images.
+
+-```unet.attn_resolution / unet.full_attn```: Explained above. Since ```attn_resolution``` value 
+must equal to the resolution value of feature map where you want to apply self Attention, you have to carefully 
+calculate desired resolution value. In the case of ```full_attn```, it is related to applying particular Attention mechanism at each
+level, it must satisfy ```len(full_attn) == len(dim_multiply)```
+
+-```unet.num_res_blocks```: Number of ResnetBlock at each level. In downward path, at each level, there will be
+num_res_blocks amount of ResnetBlock module and in upward path, at each level, there will be
+(num_res_blocks+1) amount of ResnetBlock module.
+
+-```unet.attn_heads, unet.attn_head_dim```: In the torch implementation it uses multi-head-self-Attention. attn_head is 
+the # of head. It corresponds to h in "Attention is all you need" paper. See section 3.2.2
+attn_head_dim is the dimension of each head. It corresponds to d_k in Attention paper.
+
+Lastly we will look at ```ddim``` section which is configured as follows.
+
+
+```yaml
+ddim:
+  0:
+    ddim_sampling_steps: 20
+    sample_every: 5000
+    calculate_fid: true
+    num_fid_sample: 6000
+    save: true
+  1:
+    ddim_sampling_steps: 50
+    sample_every: 50000
+    calculate_fid: true
+    num_fid_sample: 6000
+    save: true
+  2:
+    ddim_sampling_steps: 20
+    sample_every: 100000
+    calculate_fid: true
+    num_fid_sample: 60000
+    save: true
+```
+
+There are 3 subsection (0, 1, 2) which means it will use 3 DDIM Sampler for sampling image 
+and FID calculation during training.
