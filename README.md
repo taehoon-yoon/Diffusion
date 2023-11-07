@@ -172,6 +172,8 @@ num_res_blocks amount of ResnetBlock module and in upward path, at each level, t
 the # of head. It corresponds to h in "Attention is all you need" paper. See section 3.2.2
 attn_head_dim is the dimension of each head. It corresponds to d_k in Attention paper.
 
+---
+
 Lastly we will look at ```ddim``` section which is configured as follows.
 
 
@@ -198,4 +200,31 @@ ddim:
 ```
 
 There are 3 subsection (0, 1, 2) which means it will use 3 DDIM Sampler for sampling image 
-and FID calculation during training.
+and FID calculation during training. The name of each subsection, which are 0, 1, 2 in this case
+is not important. 
+
+-```ddim_sampling_steps```: The number of de-noising steps for DDIM sampling. In DDPM they used 1000 steps for sampling images. But
+in DDIM we can control the total number of de-noising steps for generating images. If this value is set to 20,
+then the speed of generating image will be 50 times faster than DDPM sampling. Preferred value would be 10~100.
+
+-```sample_every```: This control how often sampling be done with particular sampler. If set to 5000 then
+every 5000 steps, this sampler will be activated for sampling images. So if total training step is 50000, there will be 
+total 10 sampling action.
+
+-```calculata_fid```: Whether to calculate FID 
+
+-```num_fid_sample```: Only valid if ```calculate_fid``` is set to true. This control how many sampled images to use for 
+FID calculation. The speed of FID calculation for particular sampler will be inversely 
+proportional to (ddim_sanmpling_steps * num_fid_sample)
+
+-```save```: Whether to save the model based on FID value calculated by particular sampler. If set to true
+then model parameter and all the information to resume training will be saved on ```.pt``` file when model achieve best
+FID value for particular sampler.
+
+---
+
+Now we are finished setting configuration file and the training the model can be done by following command.
+
+```commandline
+python train.py -c /path_to_config_file/configuration_file.yaml 
+```
