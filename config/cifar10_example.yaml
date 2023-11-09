@@ -17,18 +17,21 @@ ddim:
     sample_every: 5000
     calculate_fid: true
     num_fid_sample: 6000
+    eta: 0
     save: true
   1:
     ddim_sampling_steps: 50
     sample_every: 50000
     calculate_fid: true
     num_fid_sample: 6000
+    eta: 0
     save: true
   2:
     ddim_sampling_steps: 20
     sample_every: 100000
     calculate_fid: true
     num_fid_sample: 60000
+    eta: 0
     save: true
 trainer:
   dataset: cifar10

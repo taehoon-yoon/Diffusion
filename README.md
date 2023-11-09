@@ -184,24 +184,27 @@ ddim:
     sample_every: 5000
     calculate_fid: true
     num_fid_sample: 6000
+    eta: 0
     save: true
   1:
     ddim_sampling_steps: 50
     sample_every: 50000
     calculate_fid: true
     num_fid_sample: 6000
+    eta: 0
     save: true
   2:
     ddim_sampling_steps: 20
     sample_every: 100000
     calculate_fid: true
     num_fid_sample: 60000
+    eta: 0
     save: true
 ```
 
 There are 3 subsection (0, 1, 2) which means it will use 3 DDIM Sampler for sampling image 
 and FID calculation during training. The name of each subsection, which are 0, 1, 2 in this case
-is not important. 
+is not important. Each DDIM Sampler name will be set to ```DDIM_{index}_steps{ddim_sampling_steps}_eta{eta}```
 
 -```ddim_sampling_steps```: The number of de-noising steps for DDIM sampling. In DDPM they used 1000 steps for sampling images. But
 in DDIM we can control the total number of de-noising steps for generating images. If this value is set to 20,
@@ -217,8 +220,11 @@ total 10 sampling action.
 FID calculation. The speed of FID calculation for particular sampler will be inversely 
 proportional to (ddim_sanmpling_steps * num_fid_sample)
 
--```save```: Whether to save the model based on FID value calculated by particular sampler. If set to true
-then model parameter and all the information to resume training will be saved on ```.pt``` file when model achieve best
+-```eta```: Hyperparameter to control the stochasticity, see (16) in DDIM paper.
+        0: deterministic(DDIM) , 1: fully stochastic(DDPM)
+
+-```save```: Whether to save the model checkpoint based on FID value calculated by particular sampler. If set to true
+then model checkpoint will be saved on ```.pt``` file when model achieve the best
 FID value for particular sampler.
 
 ---
@@ -228,3 +234,31 @@ Now we are finished setting configuration file and the training the model can be
 ```commandline
 python train.py -c /path_to_config_file/configuration_file.yaml 
 ```
+[Mandatory]
+
+    -c, --config : Path to configuration file. Path must include file name with extension .yaml
+
+[Optional]
+
+    -l, --load : Path to model checkpoint. Path must include file name with extension .pt
+    You can resume training by using this option.
+    -t, --tensorboard : Path to tensorboard folder. If you resume training and want to restore previous tensorboard, set 
+    this option to previously generated tensorboard folder.
+    --exp_name : Name for experiment. If not set, current time will be set as experiment name.
+    --cpu_percentage : Float value from 0.0 to 1.0, default value 0.0 It is used to control the num_workers parameter for DataLoader. 
+    num_workers will be set to "Number of CPU available for your device * cpu_percentage". In Windows sometimes setting 
+    this value other than 0.0 yields unexpected behavior or failure to train the model. So if you have problem triaining
+    the model in Windows, do not change this value.
+    --no_prev_ddim_setting : If set, store true. If you have changed DDIM setting, for example change the 
+    number of DDIM sampler or change the sampling steps for DDIM sampler, set this option.
+
+---
+## Inference
+
+To inference the diffusion model, first thing you have to do is to configure your inference settings by making configuration
+file. You can find some example inside the folder ```./config/inference```. I will explain how to configure your inference using
+```./config/inference/cifar10.yaml``` file 
+Inside the file you may find 4 primary section, ```type, unet, ddim, inferencer```. ```type, unet``` must match the 
+configuration for the training. On the other hand, ```ddim``` section need not match to the configuration for the
+training. 
+
