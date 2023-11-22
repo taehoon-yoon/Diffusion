@@ -1,5 +1,4 @@
 einops
-ema-pytorch
 pillow==9.5.0
 tensorboard
 tqdm

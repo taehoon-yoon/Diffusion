@@ -164,7 +164,8 @@ class Inferencer:
                     for i, j in zip([True, False], ['clip', 'no_clip']):
                         if sampler.clip not in [i, 'both']:
                             continue
-                        imgs = list(map(lambda n: sampler.sample(n, None, self.return_all_step, clip=i), batches))
+                        imgs = list(map(lambda n: sampler.sample(self.diffusion_model, batch_size=n, noise=None,
+                                                                 return_all_timestep=self.return_all_step, clip=i), batches))
                         imgs = torch.cat(imgs, dim=0)
                         if self.return_all_step:
                             path = os.path.join(sampler.save_path, '{}'.format(j), '{}'.format(idx + 1))
