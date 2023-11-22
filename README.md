@@ -1,8 +1,10 @@
 # DDPM & DDIM PyTorch
-### DDPM & DDIM re-implementation with various 
+### DDPM & DDIM re-implementation with various functionality
 
 This code is the implementation code of the papers DDPM ([Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239)) 
 and DDIM ([Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)).
+
+
 
 ---
 ## Objective
@@ -203,8 +205,9 @@ ddim:
 ```
 
 There are 3 subsection (0, 1, 2) which means it will use 3 DDIM Sampler for sampling image 
-and FID calculation during training. The name of each subsection, which are 0, 1, 2 in this case
-is not important. Each DDIM Sampler name will be set to ```DDIM_{index}_steps{ddim_sampling_steps}_eta{eta}```
+and FID calculation during training. The name of each subsection, which are 0, 1, 2,
+is not important. Each DDIM Sampler name will be set to ```DDIM_{index}_steps{ddim_sampling_steps}_eta{eta}``` no matter
+what the name of each subsection is set in configuration file.
 
 -```ddim_sampling_steps```: The number of de-noising steps for DDIM sampling. In DDPM they used 1000 steps for sampling images. But
 in DDIM we can control the total number of de-noising steps for generating images. If this value is set to 20,
@@ -260,5 +263,56 @@ file. You can find some example inside the folder ```./config/inference```. I wi
 ```./config/inference/cifar10.yaml``` file 
 Inside the file you may find 4 primary section, ```type, unet, ddim, inferencer```. ```type, unet``` must match the 
 configuration for the training. On the other hand, ```ddim``` section need not match to the configuration for the
-training. 
+training. One thing to notice is that ```sample_every, save``` option will not be used in inference for DDIM. We
+are left with ```inferencer``` section.
 
+```yaml
+inferencer:
+  dataset: cifar10
+  batch_size: 128
+  clip: true
+  num_samples_per_image: 64
+  num_images_to_generate: 2
+  ddpm_fid_estimate: true
+  ddpm_num_fid_samples: 60000
+  return_all_step: true
+  make_denoising_gif: true
+  num_gif: 50
+```
+
+-```dataset, batch_size, clip```: Same meaning as in configuration file for training.
+
+-```num_samples_per_image```: Same meaning as ```num_samples``` in configuration file for training.
+Sampler will sample total ```num_samples_per_image``` images and save it to one large image containing each sampled images 
+where one large image have (num_samples)**0.5 rows and columns. So ```num_samples_per_image``` must be square number ex) 25, 36, 49, 64, ...
+
+-```num_images_to_generate```: How many large merged image to generate. So if this value is set to 2 then there will be
+2 large image with each image containing ```num_samples_per_image``` sampled sub images.
+
+-```ddpm_fid_estimate, ddpm_num_fid_samples```: Whether to calculate FID value for DDPM sampler. And if ```ddpm_fid_estimate```
+is set to true, ```ddpm_num_fid_samples``` decides the number of sampling images for calculating FID value.
+
+-```return_all_steps```: Whether to return all the images during de-noising steps. So in DDPM sampler, during 1000 
+de-noising steps all the intermediate images will be returned. In the case of DDIM sampler, ```ddim_sampling_steps``` images
+will be returned.
+
+-```make_denoising_gif```:  Whether to make gif which contains de-noising process visually. To make denoising gif,
+```return_all_steps``` must set to true.
+
+-```num_gif```: Number of images to make gif which contains de-noising process visually. Intermediate denoised image
+will be sampled evenly with ```num_gif``` images to make denoising gif.
+
+---
+
+Now we are finished setting configuration file and the inferencing can be done by following command.
+
+```commandline
+python inference.py -c /path_to_config_file/configuration_file.yaml -l /path_to_model_checkpoint_file/model_checkpoint.pt
+```
+
+[Mandatory]
+
+    -c, --config : Path to configuration file. Path must include file name with extension .yaml
+    -l, --load : Path to model checkpoint. Path must include file name with extension .pt
+
+---

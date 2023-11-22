@@ -1,0 +1,30 @@
+type: original
+unet:
+  dim: 128
+  image_size: 32
+  dim_multiply:
+  - 1
+  - 2
+  - 2
+  - 2
+  attn_resolutions:
+  - 16
+  dropout: 0.1
+  num_res_blocks: 2
+ddim:
+  0:
+    ddim_sampling_steps: 20
+    calculate_fid: true
+    num_fid_sample: 6000
+    generate_image: true
+inferencer:
+  dataset: cifar10
+  batch_size: 128
+  clip: true
+  num_samples_per_image: 64
+  num_images_to_generate: 20
+  ddpm_fid_estimate: true
+  ddpm_num_fid_samples: 60000
+  return_all_step: true
+  make_denoising_gif: true
+  num_gif: 50
