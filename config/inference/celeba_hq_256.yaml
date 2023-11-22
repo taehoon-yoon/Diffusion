@@ -1,0 +1,26 @@
+type: original
+unet:
+  dim: 128
+  image_size: 64
+  dim_multiply:
+  - 1
+  - 1
+  - 2
+  - 2
+  - 4
+  attn_resolutions:
+  - 16
+  dropout: 0.0
+  num_res_blocks: 2
+ddim:
+inferencer:
+  dataset: ./data/celeba_hq_256
+  batch_size: 32
+  clip: true
+  num_samples_per_image: 64
+  num_images_to_generate: 20
+  ddpm_fid_estimate: true
+  ddpm_num_fid_samples: 30000
+  return_all_step: true
+  make_denoising_gif: true
+  num_gif: 50

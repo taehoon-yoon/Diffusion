@@ -22,7 +22,7 @@ inferencer:
   batch_size: 128
   clip: true
   num_samples_per_image: 64
-  num_images_to_generate: 2
+  num_images_to_generate: 10
   ddpm_fid_estimate: true
   ddpm_num_fid_samples: 60000
   return_all_step: true
