@@ -26,8 +26,9 @@ def main(args):
     diffusion = GaussianDiffusion(unet, image_size=image_size).to(args.device)
 
     ddim_samplers = list()
-    for sampler_cfg in ddim_cfg.values():
-        ddim_samplers.append(DDIM_Sampler(diffusion, **sampler_cfg))
+    if isinstance(ddim_cfg, dict):
+        for sampler_cfg in ddim_cfg.values():
+            ddim_samplers.append(DDIM_Sampler(diffusion, **sampler_cfg))
 
     inferencer = Inferencer(diffusion, ddim_samplers=ddim_samplers, time_step=diffusion.time_step, **trainer_cfg)
     inferencer.load(args.load)
