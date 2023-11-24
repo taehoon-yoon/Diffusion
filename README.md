@@ -4,7 +4,11 @@
 This code is the implementation code of the papers DDPM ([Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239)) 
 and DDIM ([Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)).
 
-
+<img src="./images_README/cifar10_128_ex1.png" height="400" width="400"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/cifar10_128_ex1.gif" height="400" width="400">
+<br><br>
+<img src="./images_README/cifar10_128_ex2.png" height="400" width="400"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/cifar10_128_ex2.gif" height="400" width="400">
 
 ---
 ## Objective
@@ -17,7 +21,89 @@ version lacks some functionality for monitoring training and does not have infer
 re-implement the code such that it can be helpful for someone who is first to **Diffusion** models.
 
 ---
+## Results
+
+|  Dataset  | Model checkpoint name | FID (↓) | 
+|:---------:|:---------------------:|:---:|
+|  Cifar10  |   cifar10_64dim.pt    ||
+|  Cifar10  ||   cifar10_128dim.pt   |
+| CelebA-HQ |   celeba_hq_256.pt    ||
+
+---
+## Installation
+Tested for ```python 3.8.17``` with ```torch 1.12.1+cu113``` and ```torchvision 0.13.1+cu113```.
+Download appropriate pytorch version via [torch website](https://pytorch.org/get-started/previous-versions/#v1121) or by following command.
+```
+pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
+```
+Install other required moduls by following command.
+```
+pip install -r requirements.txt
+```
+
+---
+## Quick Start
+### Inference
+Download pre-trained model checkpoints from [model checkpoints](https://drive.google.com/drive/folders/1YdFQEb3d7rInRVVLLN3VZu-fI0qq15pG?usp=sharing)
+
+- Cifar10 (64 dimension for first hidden dimension)
+```commandline
+python inference.py -c ./config/inference/cifar10.yaml -l /path_to_cifar10_64dim.pt/cifar10_64dim.pt
+```
+- Cifar10 (128 dimension for first hidden dimension, purposed structure by original implementation)
+```commandline
+python inference.py -c ./config/inference/cifar10_128dim.yaml -l /path_to_cifar10_128dim.pt/cifar10_128dim.pt
+```
+- CelebA-HQ
+
+You have to download CelebA-HQ dataset from [kaggle](https://www.kaggle.com/datasets/badasstechie/celebahq-resized-256x256/).
+After un-zipping the zip file, you may find folder named ```/celeba_hq_256```, make the folder named ```/data``` if your 
+project directory does not have it, place the ```/celeba_hq_256``` folder under the ```/data``` folder such that final
+structure must be configured as follows.
+```
+- DDPM
+    - /config
+    - /src
+    - /images_README
+    - inference.py
+    - train.py
+    ...
+    - /data (make the directory if you don't have it)
+        - /celeba_hq_256
+            - 00000.jpg
+            - 00001.jpg
+            ...
+            - 29999.jpg
+    
+```
+
+```commandline
+python inference.py -c ./config/inference/celeba_hq_256.yaml -l /path_to_celeba_hq_256.pt/celeba_hq_256.pt
+```
+
+### Training
+
+- Cifar10 (64 dimension for first hidden dimension)
+```commandline
+python train.py -c ./config/cifar10.yaml
+```
+- Cifar10 (128 dimension for first hidden dimension, purposed structure by original implementation)
+```commandline
+python train.py -c ./config/cifar10_128dim.yaml
+```
+- CelebA-HQ
+
+You have to download dataset, consult details in inference section in Quick Start.
+
+```commandline
+python train.py -c ./config/celeba_hq_256.yaml
+```
+
+---
 ## Training
+
+<details>
+<summary>Expand for details</summary>
 
 To train the diffusion model, first thing you have to do is to configure your training settings by making configuration
 file. You can find some example inside the folder ```./config```. I will explain how to configure your training using
@@ -254,9 +340,13 @@ python train.py -c /path_to_config_file/configuration_file.yaml
     the model in Windows, do not change this value.
     --no_prev_ddim_setting : If set, store true. If you have changed DDIM setting, for example change the 
     number of DDIM sampler or change the sampling steps for DDIM sampler, set this option.
+</details>
 
 ---
 ## Inference
+
+<details>
+<summary>Expand for details</summary>
 
 To inference the diffusion model, first thing you have to do is to configure your inference settings by making configuration
 file. You can find some example inside the folder ```./config/inference```. I will explain how to configure your inference using
@@ -314,5 +404,8 @@ python inference.py -c /path_to_config_file/configuration_file.yaml -l /path_to_
 
     -c, --config : Path to configuration file. Path must include file name with extension .yaml
     -l, --load : Path to model checkpoint. Path must include file name with extension .pt
+</details>
 
 ---
+## References
+

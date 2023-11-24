@@ -14,16 +14,10 @@ unet:
   num_res_blocks: 2
 ddim:
   0:
-    ddim_sampling_steps: 50
-    sample_every: 50000
-    calculate_fid: true
-    num_fid_sample: 3000
-    save: true
-  1:
     ddim_sampling_steps: 20
-    sample_every: 100000
+    sample_every: 20000
     calculate_fid: true
-    num_fid_sample: 30000
+    num_fid_sample: 10000
     save: true
 trainer:
   dataset: ./data/celeba_hq_256

@@ -14,22 +14,9 @@ unet:
 ddim:
   0:
     ddim_sampling_steps: 20
-    sample_every: 5000
+    sample_every: 10000
     calculate_fid: true
-    num_fid_sample: 6000
-    save: true
-  1:
-    ddim_sampling_steps: 50
-    sample_every: 50000
-    calculate_fid: true
-    num_fid_sample: 6000
-    save: true
-
-  2:
-    ddim_sampling_steps: 20
-    sample_every: 100000
-    calculate_fid: true
-    num_fid_sample: 60000
+    num_fid_sample: 30000
     save: true
 trainer:
   dataset: cifar10
@@ -39,4 +26,4 @@ trainer:
   save_and_sample_every: 2500
   num_samples: 64
   fid_estimate_batch_size: 128
-  clip: both
+  clip: true
