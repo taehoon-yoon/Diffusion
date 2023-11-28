@@ -5,10 +5,10 @@ This code is the implementation code of the papers DDPM ([Denoising Diffusion Pr
 and DDIM ([Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)).
 
 <img src="./images_README/cifar10_128_ex1.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
-<img src="./images_README/cifar10_128_ex1.gif" height="350" width="350">
-<br><br>
-<img src="./images_README/cifar10_128_ex2.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
 <img src="./images_README/cifar10_128_ex2.gif" height="350" width="350">
+<br><br>
+<img src="./images_README/cifar10_128_ex3.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/cifar10_128_ex4.gif" height="350" width="350">
 
 ---
 ## Objective
@@ -28,6 +28,15 @@ re-implement the code such that it can be helpful for someone who is first to **
 |  Cifar10  |   cifar10_64dim.pt    |  11.81  |
 |  Cifar10  |   cifar10_128dim.pt   |  8.31   |
 | CelebA-HQ |   celeba_hq_256.pt    |  11.97  |
+
+- cifar10_64dim
+
+- cifar10_128dim
+
+<img src="./images_README/cifar10_128_ex3.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/cifar10_128_ex4.gif" height="350" width="350">
+
+- celeba_hq_256
 
 ---
 ## Installation
