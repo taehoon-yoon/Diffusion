@@ -7,8 +7,8 @@ and DDIM ([Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502
 <img src="./images_README/cifar10_128_ex1.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
 <img src="./images_README/cifar10_128_ex1.gif" height="350" width="350">
 <br><br>
-<img src="./images_README/cifar10_128_ex2.png" height="400" width="400"> &nbsp; &nbsp; &nbsp;
-<img src="./images_README/cifar10_128_ex2.gif" height="400" width="400">
+<img src="./images_README/cifar10_128_ex2.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/cifar10_128_ex2.gif" height="350" width="350">
 
 ---
 ## Objective
@@ -408,4 +408,6 @@ python inference.py -c /path_to_config_file/configuration_file.yaml -l /path_to_
 
 ---
 ## References
+- [Jonathan Ho, Ajay Jain, Pieter Abbeel : Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239)
 
+- [Jiaming Song, Chenlin Meng, Stefano Ermon : Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)
