@@ -7,8 +7,8 @@ and DDIM ([Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502
 <img src="./images_README/cifar10_128_ex1.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
 <img src="./images_README/cifar10_128_ex2.gif" height="350" width="350">
 <br><br>
-<img src="./images_README/cifar10_128_ex3.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
-<img src="./images_README/cifar10_128_ex4.gif" height="350" width="350">
+<img src="./images_README/celeba_hq_ex1.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/celeba_hq_ex1.gif" height="350" width="350">
 
 ---
 ## Objective
@@ -31,12 +31,24 @@ re-implement the code such that it can be helpful for someone who is first to **
 
 - cifar10_64dim
 
+<img src="./images_README/cifar10_64_ex1.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/cifar10_64_ex2.gif" height="350" width="350">
+
 - cifar10_128dim
 
 <img src="./images_README/cifar10_128_ex3.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
 <img src="./images_README/cifar10_128_ex4.gif" height="350" width="350">
 
 - celeba_hq_256
+
+<img src="./images_README/celeba_hq_ex2.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/celeba_hq_ex2.gif" height="350" width="350">
+<br><br>
+<img src="./images_README/celeba_hq_ex3.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/celeba_hq_ex3.gif" height="350" width="350">
+<br><br>
+<img src="./images_README/celeba_hq_ex4.png" height="350" width="350"> &nbsp; &nbsp; &nbsp;
+<img src="./images_README/celeba_hq_ex4.gif" height="350" width="350">
 
 ---
 ## Installation
