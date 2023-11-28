@@ -24,10 +24,10 @@ re-implement the code such that it can be helpful for someone who is first to **
 ## Results
 
 |  Dataset  | Model checkpoint name | FID (↓) | 
-|:---------:|:---------------------:|:---:|
-|  Cifar10  |   cifar10_64dim.pt    ||
-|  Cifar10  ||   cifar10_128dim.pt   |
-| CelebA-HQ |   celeba_hq_256.pt    ||
+|:---------:|:---------------------:|:-------:|
+|  Cifar10  |   cifar10_64dim.pt    |  11.81  |
+|  Cifar10  |   cifar10_128dim.pt   |  8.31   |
+| CelebA-HQ |   celeba_hq_256.pt    |  11.97  |
 
 ---
 ## Installation
