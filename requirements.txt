@@ -5,3 +5,4 @@ tqdm
 termcolor
 pytorch-fid
 pyyaml
+six

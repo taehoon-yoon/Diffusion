@@ -120,8 +120,11 @@ You have to download dataset, consult details in inference section in Quick Star
 python train.py -c ./config/celeba_hq_256.yaml
 ```
 
+:pushpin: 
+You can find more detailed explanation for training and inference at the below two section.
+
 ---
-## Training
+## Training ( Detailed version )
 
 <details>
 <summary>Expand for details</summary>
@@ -364,7 +367,7 @@ python train.py -c /path_to_config_file/configuration_file.yaml
 </details>
 
 ---
-## Inference
+## Inference ( Detailed version )
 
 <details>
 <summary>Expand for details</summary>
