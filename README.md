@@ -25,9 +25,9 @@ re-implement the code such that it can be helpful for someone who is first to **
 
 |  Dataset  | Model checkpoint name | FID (↓) | 
 |:---------:|:---------------------:|:-------:|
-|  Cifar10  |   cifar10_64dim.pt    |  11.81  |
-|  Cifar10  |   cifar10_128dim.pt   |  8.31   |
-| CelebA-HQ |   celeba_hq_256.pt    |  11.97  |
+|  Cifar10  |   [cifar10_64dim.pt](https://drive.google.com/file/d/1vHfP8f_viyadhuXMaLfAQ1Iu5UE0WiiJ/view?usp=drive_link)    |  11.81  |
+|  Cifar10  |   [cifar10_128dim.pt](https://drive.google.com/file/d/1NtysETxHPinns6JabjawyWTnkjJKT34M/view?usp=drive_link)   |  8.31   |
+| CelebA-HQ |   [celeba_hq_256.pt](https://drive.google.com/file/d/1zzZbkNkMYCFKmWKW5Sh2JsrUsNrWyDCs/view?usp=drive_link)    |  11.97  |
 
 - cifar10_64dim
 
@@ -121,7 +121,7 @@ python train.py -c ./config/celeba_hq_256.yaml
 ```
 
 :pushpin: 
-You can find more detailed explanation for training and inference at the below two section.
+***You can find more detailed explanation for training and inference at the below two section.***
 
 ---
 ## Training ( Detailed version )
